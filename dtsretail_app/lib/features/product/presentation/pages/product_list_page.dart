@@ -101,7 +101,7 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => AppErrorView(message: error.toString(), onRetry: () => setState(() {})),
+      error: (error, _) => AppErrorView(message: error.toString(), onRetry: () => ref.invalidate(productSearchProvider(query))),
     );
   }
 
