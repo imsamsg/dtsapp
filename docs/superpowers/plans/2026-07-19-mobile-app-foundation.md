@@ -4,7 +4,7 @@
 
 **Goal:** Scaffold the `dtsretail-app` Flutter mobile app (Android) with feature-first architecture, wired to the existing `dtsapi` backend: login, dashboard, Product Catalog, and Stock Count (no Approve — see spec).
 
-**Architecture:** Feature-first Clean Architecture (`data/domain/presentation` per feature) with Riverpod for state, GoRouter (`StatefulShellRoute`) for bottom-nav routing, Dio for API access with an auth-refresh interceptor, Freezed/json_serializable for DTOs, a mapper layer converting DTOs to domain entities so UI never touches raw JSON shapes.
+**Architecture:** Feature-first Clean Architecture (`data/domain/presentation` per feature) with Riverpod for state, GoRouter for routing behind a left-drawer nav shell (per `designs/home.png`), Dio for API access with an auth-refresh interceptor, Freezed/json_serializable for DTOs, a mapper layer converting DTOs to domain entities so UI never touches raw JSON shapes.
 
 **Tech Stack:** Flutter 3.32.1 / Dart 3.8.1, flutter_riverpod, go_router, dio, freezed + json_serializable, flutter_secure_storage, shared_preferences, mobile_scanner, build_runner.
 
@@ -98,10 +98,11 @@ dtsretail_app/
         presentation/widgets/stock_count_card.dart
         presentation/widgets/warehouse_selector.dart
         presentation/widgets/barcode_scan_line_entry.dart
-      profile/
-        presentation/pages/profile_page.dart
+      settings/
+        presentation/pages/settings_page.dart
     shared/
-      widgets/app_scaffold.dart
+      widgets/app_drawer.dart
+      widgets/app_page_scaffold.dart
   test/
     core/api/auth_interceptor_test.dart
     features/authentication/domain/login_usecase_test.dart
@@ -1426,20 +1427,23 @@ git commit -m "Add auth providers and LoginPage"
 
 ---
 
-## Task 7: Theme, router with auth guard, and bottom-nav shell
+## Task 7: Theme, router with auth guard, and left-drawer nav shell
+
+Navigation pattern per `designs/home.png`: a left `Drawer` (slide-out via hamburger icon), not bottom navigation. `Stock Pick` and `POS` appear in the drawer per the design reference but are disabled/"Coming soon" — not functional routes in this pass. There is no standalone Profile route; the profile/session card lives on the Dashboard itself (Task 14).
 
 **Files:**
 - Create: `lib/app/theme/app_theme.dart`
 - Create: `lib/app/router.dart`
 - Create: `lib/app/app.dart`
-- Create: `lib/shared/widgets/app_scaffold.dart`
-- Create: `lib/features/dashboard/presentation/pages/dashboard_page.dart` (stub for wiring; fleshed out in Task 9)
-- Create: `lib/features/profile/presentation/pages/profile_page.dart`
+- Create: `lib/shared/widgets/app_drawer.dart`
+- Create: `lib/shared/widgets/app_page_scaffold.dart`
+- Create: `lib/features/dashboard/presentation/pages/dashboard_page.dart` (stub for wiring; fleshed out in Task 14)
+- Create: `lib/features/settings/presentation/pages/settings_page.dart`
 - Modify: `lib/main.dart`
 
 **Interfaces:**
 - Consumes: `authStateProvider` (Task 6).
-- Produces: `appThemeLight`; `routerProvider → Provider<GoRouter>`; route paths `/login`, `/dashboard`, `/products`, `/stock-counts`, `/profile` mounted under a `StatefulShellRoute`.
+- Produces: `appThemeLight` (DTS green palette); `routerProvider → Provider<GoRouter>`; route paths `/login`, `/dashboard`, `/products`, `/stock-counts`, `/settings`, each rendered inside `AppPageScaffold` (`AppBar` with hamburger + `AppDrawer`).
 
 - [ ] **Step 1: Create the theme**
 
@@ -1447,104 +1451,235 @@ Create `lib/app/theme/app_theme.dart`:
 ```dart
 import 'package:flutter/material.dart';
 
+/// Palette sampled from designs/login.png and designs/home.png (DTS brand green).
+class AppColors {
+  AppColors._();
+
+  static const primary = Color(0xFF0E6251); // teal-green CTA / brand accent
+  static const primaryDark = Color(0xFF0B3D2E); // sidebar / gradient background
+  static const surfaceTint = Color(0xFFF3F7F5); // light card-on-tinted-background
+}
+
 final ThemeData appThemeLight = ThemeData(
   useMaterial3: true,
-  colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E20)),
-  appBarTheme: const AppBarTheme(centerTitle: false),
+  colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
+  scaffoldBackgroundColor: AppColors.surfaceTint,
+  appBarTheme: const AppBarTheme(centerTitle: false, backgroundColor: Colors.white, foregroundColor: Colors.black87, elevation: 0),
+  filledButtonTheme: FilledButtonThemeData(
+    style: FilledButton.styleFrom(backgroundColor: AppColors.primary, minimumSize: const Size.fromHeight(48)),
+  ),
 );
 ```
 
-- [ ] **Step 2: Create placeholder `DashboardPage` and `ProfilePage`**
+- [ ] **Step 2: Create `AppDrawer`**
+
+Create `lib/shared/widgets/app_drawer.dart`:
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../app/theme/app_theme.dart';
+import '../../features/authentication/presentation/providers/auth_providers.dart';
+
+class AppDrawer extends ConsumerWidget {
+  const AppDrawer({super.key, required this.currentPath});
+
+  final String currentPath;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Drawer(
+      backgroundColor: AppColors.primaryDark,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  'DTS Retail',
+                  style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            _DrawerItem(
+              icon: Icons.home_outlined,
+              label: 'Home',
+              selected: currentPath == '/dashboard',
+              onTap: () => _navigate(context, '/dashboard'),
+            ),
+            _DrawerItem(
+              icon: Icons.inventory_2_outlined,
+              label: 'Product',
+              selected: currentPath.startsWith('/products'),
+              onTap: () => _navigate(context, '/products'),
+            ),
+            _DrawerItem(
+              icon: Icons.assignment_turned_in_outlined,
+              label: 'Stock Pick',
+              selected: false,
+              enabled: false,
+              onTap: () {},
+            ),
+            _DrawerItem(
+              icon: Icons.fact_check_outlined,
+              label: 'Stock Count',
+              selected: currentPath.startsWith('/stock-counts'),
+              onTap: () => _navigate(context, '/stock-counts'),
+            ),
+            _DrawerItem(
+              icon: Icons.point_of_sale_outlined,
+              label: 'POS',
+              selected: false,
+              enabled: false,
+              onTap: () {},
+            ),
+            _DrawerItem(
+              icon: Icons.settings_outlined,
+              label: 'Settings',
+              selected: currentPath.startsWith('/settings'),
+              onTap: () => _navigate(context, '/settings'),
+            ),
+            const Spacer(),
+            const Divider(color: Colors.white24),
+            _DrawerItem(
+              icon: Icons.logout,
+              label: 'Logout',
+              selected: false,
+              onTap: () {
+                Navigator.of(context).pop();
+                ref.read(authStateProvider.notifier).logout();
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _navigate(BuildContext context, String path) {
+    Navigator.of(context).pop();
+    if (currentPath != path) context.go(path);
+  }
+}
+
+class _DrawerItem extends StatelessWidget {
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = !enabled ? Colors.white38 : (selected ? Colors.white : Colors.white70);
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Row(
+        children: [
+          Text(label, style: TextStyle(color: color)),
+          if (!enabled) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(4)),
+              child: const Text('Coming soon', style: TextStyle(color: Colors.white70, fontSize: 10)),
+            ),
+          ],
+        ],
+      ),
+      selected: selected,
+      selectedTileColor: Colors.white12,
+      onTap: enabled ? onTap : null,
+    );
+  }
+}
+```
+
+- [ ] **Step 3: Create `AppPageScaffold`**
+
+Create `lib/shared/widgets/app_page_scaffold.dart`:
+```dart
+import 'package:flutter/material.dart';
+import 'app_drawer.dart';
+
+class AppPageScaffold extends StatelessWidget {
+  const AppPageScaffold({
+    super.key,
+    required this.currentPath,
+    required this.title,
+    required this.body,
+    this.actions,
+    this.floatingActionButton,
+  });
+
+  final String currentPath;
+  final String title;
+  final Widget body;
+  final List<Widget>? actions;
+  final Widget? floatingActionButton;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title), actions: actions),
+      drawer: AppDrawer(currentPath: currentPath),
+      body: body,
+      floatingActionButton: floatingActionButton,
+    );
+  }
+}
+```
+Every top-level page (Dashboard, Product list, Stock Count list, Settings) wraps its content in `AppPageScaffold` instead of a bare `Scaffold`, so the drawer and hamburger icon are available consistently. Detail/form pages pushed on top (Product detail, Stock Count detail/form) keep using a plain `Scaffold` with a back arrow — they're not drawer destinations.
+
+- [ ] **Step 4: Create placeholder `DashboardPage` and `SettingsPage`**
 
 Create `lib/features/dashboard/presentation/pages/dashboard_page.dart`:
 ```dart
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: Text('Dashboard')));
+    return const AppPageScaffold(currentPath: '/dashboard', title: 'Home', body: Center(child: Text('Dashboard')));
   }
 }
 ```
-(This is replaced with the real implementation in Task 9 — kept minimal here only so the router compiles.)
+(This is replaced with the real implementation in Task 14 — kept minimal here only so the router compiles.)
 
-Create `lib/features/profile/presentation/pages/profile_page.dart`:
+Create `lib/features/settings/presentation/pages/settings_page.dart`:
 ```dart
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../authentication/presentation/providers/auth_providers.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 
-class ProfilePage extends ConsumerWidget {
-  const ProfilePage({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authStateProvider);
-    final session = authState is AuthAuthenticated ? authState.session : null;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
-      body: ListView(
-        children: [
-          if (session != null)
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: Text(session.fullName),
-              subtitle: Text('${session.companyId} · ${session.branchId} · ${session.roleName}'),
-            ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.help_outline),
-            title: const Text('Help & About'),
-            onTap: () {},
-          ),
-          ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text('Logout'),
-            onTap: () => ref.read(authStateProvider.notifier).logout(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-```
-
-- [ ] **Step 3: Create the shared bottom-nav scaffold**
-
-Create `lib/shared/widgets/app_scaffold.dart`:
-```dart
-import 'package:flutter/material.dart';
-
-class AppScaffold extends StatelessWidget {
-  const AppScaffold({super.key, required this.navigationShell});
-
-  final StatefulNavigationShell navigationShell;
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) => navigationShell.goBranch(index),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
-          NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: 'Products'),
-          NavigationDestination(icon: Icon(Icons.fact_check_outlined), selectedIcon: Icon(Icons.fact_check), label: 'Stock Count'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
+    return const AppPageScaffold(
+      currentPath: '/settings',
+      title: 'Settings',
+      body: Center(child: Text('Nothing to configure yet.')),
     );
   }
 }
 ```
-Note: `StatefulNavigationShell` comes from `go_router`; import it in Step 4 alongside `router.dart`.
 
-- [ ] **Step 4: Create the router**
+- [ ] **Step 5: Create the router**
 
 Create `lib/app/router.dart`:
 ```dart
@@ -1555,13 +1690,10 @@ import '../features/authentication/presentation/pages/login_page.dart';
 import '../features/authentication/presentation/providers/auth_providers.dart';
 import '../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../features/product/presentation/pages/product_list_page.dart';
+import '../features/settings/presentation/pages/settings_page.dart';
 import '../features/stock_count/presentation/pages/stock_count_list_page.dart';
-import '../features/profile/presentation/pages/profile_page.dart';
-import '../shared/widgets/app_scaffold.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authNotifier = ref.watch(authStateProvider.notifier);
-
   return GoRouter(
     initialLocation: '/dashboard',
     refreshListenable: _AuthStateListenable(ref),
@@ -1577,23 +1709,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-      StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) => AppScaffold(navigationShell: navigationShell),
-        branches: [
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/dashboard', builder: (context, state) => const DashboardPage()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/products', builder: (context, state) => const ProductListPage()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/stock-counts', builder: (context, state) => const StockCountListPage()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/profile', builder: (context, state) => const ProfilePage()),
-          ]),
-        ],
-      ),
+      GoRoute(path: '/dashboard', builder: (context, state) => const DashboardPage()),
+      GoRoute(path: '/products', builder: (context, state) => const ProductListPage()),
+      GoRoute(path: '/stock-counts', builder: (context, state) => const StockCountListPage()),
+      GoRoute(path: '/settings', builder: (context, state) => const SettingsPage()),
     ],
   );
 });
@@ -1605,8 +1724,9 @@ class _AuthStateListenable extends ChangeNotifier {
   final Ref _ref;
 }
 ```
+Note: unlike a `StatefulShellRoute`, plain top-level `GoRoute`s don't preserve each destination's scroll/search state when you switch via the drawer — acceptable for this pass since the drawer is a slower, deliberate navigation action (not a frequently-tapped bottom bar), not a gap worth the added complexity of a shell right now.
 
-- [ ] **Step 5: Create `app.dart` and update `main.dart`**
+- [ ] **Step 6: Create `app.dart` and update `main.dart`**
 
 Create `lib/app/app.dart`:
 ```dart
@@ -1641,45 +1761,49 @@ void main() {
 }
 ```
 
-- [ ] **Step 6: Verify the app compiles and launches to the login screen**
+- [ ] **Step 7: Verify the app compiles and launches to the login screen**
 
 Run: `flutter analyze`
 Expected: no errors (warnings about unused stub pages are acceptable at this stage since Product/Stock Count pages are stubs until Tasks 8-9).
 
-Since `product_list_page.dart` and `stock_count_list_page.dart` don't exist yet, add minimal stubs now so `flutter analyze` passes — these are replaced in Tasks 8 and 9:
+Since `product_list_page.dart` and `stock_count_list_page.dart` don't exist yet, add minimal stubs now so `flutter analyze` passes — these are replaced in Tasks 10 and 12:
 
 Create `lib/features/product/presentation/pages/product_list_page.dart`:
 ```dart
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 
 class ProductListPage extends StatelessWidget {
   const ProductListPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('Products')));
+  Widget build(BuildContext context) =>
+      const AppPageScaffold(currentPath: '/products', title: 'Product Catalog', body: Center(child: Text('Products')));
 }
 ```
 
 Create `lib/features/stock_count/presentation/pages/stock_count_list_page.dart`:
 ```dart
 import 'package:flutter/material.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 
 class StockCountListPage extends StatelessWidget {
   const StockCountListPage({super.key});
 
   @override
-  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('Stock Counts')));
+  Widget build(BuildContext context) =>
+      const AppPageScaffold(currentPath: '/stock-counts', title: 'Stock Counts', body: Center(child: Text('Stock Counts')));
 }
 ```
 
 Run: `flutter analyze` again.
 Expected: `No issues found!`
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add lib/app lib/shared lib/features/dashboard/presentation/pages/dashboard_page.dart lib/features/profile lib/features/product/presentation/pages/product_list_page.dart lib/features/stock_count/presentation/pages/stock_count_list_page.dart lib/main.dart
-git commit -m "Add theme, router with auth guard, and bottom-nav shell"
+git add lib/app lib/shared lib/features/dashboard/presentation/pages/dashboard_page.dart lib/features/settings lib/features/product/presentation/pages/product_list_page.dart lib/features/stock_count/presentation/pages/stock_count_list_page.dart lib/main.dart
+git commit -m "Add DTS green theme, router with auth guard, and left-drawer nav shell"
 ```
 
 ---
@@ -2354,6 +2478,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/services/barcode_scanner_service.dart';
 import '../../../../core/storage/recent_searches_storage.dart';
 import '../../../../core/widgets/app_error_view.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../providers/product_providers.dart';
 import '../widgets/product_card.dart';
@@ -2381,16 +2506,15 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
     final authState = ref.watch(authStateProvider);
     final companyId = authState is AuthAuthenticated ? authState.session.companyId : null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Products'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner),
-            onPressed: () => _scanAndSearch(companyId),
-          ),
-        ],
-      ),
+    return AppPageScaffold(
+      currentPath: '/products',
+      title: 'Product Catalog',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.qr_code_scanner),
+          onPressed: () => _scanAndSearch(companyId),
+        ),
+      ],
       body: Column(
         children: [
           Padding(
@@ -2557,28 +2681,26 @@ class ProductDetailPage extends ConsumerWidget {
 
 - [ ] **Step 6: Wire the detail route into the router**
 
-Modify `lib/app/router.dart` — add the import and nest the detail route under the products branch:
+Modify `lib/app/router.dart` — add the import and nest the detail route under `/products`:
 ```dart
 import '../features/product/presentation/pages/product_detail_page.dart';
 ```
-Replace the products branch:
+Replace the `/products` route:
 ```dart
-          StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/products',
-              builder: (context, state) => const ProductListPage(),
-              routes: [
-                GoRoute(
-                  path: ':companyId/:productTypeCode/:productCode',
-                  builder: (context, state) => ProductDetailPage(
-                    companyId: state.pathParameters['companyId']!,
-                    productTypeCode: state.pathParameters['productTypeCode']!,
-                    productCode: state.pathParameters['productCode']!,
-                  ),
-                ),
-              ],
+      GoRoute(
+        path: '/products',
+        builder: (context, state) => const ProductListPage(),
+        routes: [
+          GoRoute(
+            path: ':companyId/:productTypeCode/:productCode',
+            builder: (context, state) => ProductDetailPage(
+              companyId: state.pathParameters['companyId']!,
+              productTypeCode: state.pathParameters['productTypeCode']!,
+              productCode: state.pathParameters['productCode']!,
             ),
-          ]),
+          ),
+        ],
+      ),
 ```
 
 - [ ] **Step 7: Write the widget test**
@@ -3515,6 +3637,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/widgets/app_error_view.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../providers/stock_count_providers.dart';
 import '../widgets/stock_count_card.dart';
@@ -3531,13 +3654,12 @@ class StockCountListPage extends ConsumerWidget {
     final query = StockCountSearchQuery(companyId: session.companyId, branchId: session.branchId);
     final resultAsync = ref.watch(stockCountSearchProvider(query));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Stock Counts'),
-        actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: () => context.push('/stock-counts/new')),
-        ],
-      ),
+    return AppPageScaffold(
+      currentPath: '/stock-counts',
+      title: 'Stock Counts',
+      actions: [
+        IconButton(icon: const Icon(Icons.add), onPressed: () => context.push('/stock-counts/new')),
+      ],
       body: resultAsync.when(
         data: (result) {
           if (result.items.isEmpty) return const Center(child: Text('No stock counts found.'));
@@ -3635,28 +3757,26 @@ class StockCountDetailPage extends ConsumerWidget {
 
 - [ ] **Step 5: Wire detail route into router**
 
-Modify `lib/app/router.dart` — add import and nest under the stock-counts branch:
+Modify `lib/app/router.dart` — add import and nest under `/stock-counts`:
 ```dart
 import '../features/stock_count/presentation/pages/stock_count_detail_page.dart';
 ```
-Replace the stock-counts branch:
+Replace the `/stock-counts` route:
 ```dart
-          StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/stock-counts',
-              builder: (context, state) => const StockCountListPage(),
-              routes: [
-                GoRoute(
-                  path: ':companyId/:branchId/:stockcntId',
-                  builder: (context, state) => StockCountDetailPage(
-                    companyId: state.pathParameters['companyId']!,
-                    branchId: state.pathParameters['branchId']!,
-                    stockcntId: state.pathParameters['stockcntId']!,
-                  ),
-                ),
-              ],
+      GoRoute(
+        path: '/stock-counts',
+        builder: (context, state) => const StockCountListPage(),
+        routes: [
+          GoRoute(
+            path: ':companyId/:branchId/:stockcntId',
+            builder: (context, state) => StockCountDetailPage(
+              companyId: state.pathParameters['companyId']!,
+              branchId: state.pathParameters['branchId']!,
+              stockcntId: state.pathParameters['stockcntId']!,
             ),
-          ]),
+          ),
+        ],
+      ),
 ```
 (The `/stock-counts/new` route is added in Task 13 alongside the form page it renders.)
 
@@ -4098,16 +4218,16 @@ Modify `lib/app/router.dart` — add import:
 ```dart
 import '../features/stock_count/presentation/pages/stock_count_form_page.dart';
 ```
-Add a sibling route inside the stock-counts branch (alongside the `:companyId/:branchId/:stockcntId` route added in Task 12):
+Add a sibling route inside `/stock-counts`'s `routes:` list (alongside the `:companyId/:branchId/:stockcntId` route added in Task 12):
 ```dart
-                GoRoute(
-                  path: 'new',
-                  builder: (context, state) => StockCountFormPage(
-                    companyId: state.uri.queryParameters['companyId'],
-                    branchId: state.uri.queryParameters['branchId'],
-                    stockcntId: state.uri.queryParameters['stockcntId'],
-                  ),
-                ),
+          GoRoute(
+            path: 'new',
+            builder: (context, state) => StockCountFormPage(
+              companyId: state.uri.queryParameters['companyId'],
+              branchId: state.uri.queryParameters['branchId'],
+              stockcntId: state.uri.queryParameters['stockcntId'],
+            ),
+          ),
 ```
 
 - [ ] **Step 5: Run full analyze and full test suite**
@@ -4288,6 +4408,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/services/barcode_scanner_service.dart';
+import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../widgets/feature_tile.dart';
 import '../widgets/greeting_header.dart';
@@ -4308,8 +4429,9 @@ class DashboardPage extends ConsumerWidget {
     if (authState is! AuthAuthenticated) return const SizedBox.shrink();
     final session = authState.session;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Dashboard')),
+    return AppPageScaffold(
+      currentPath: '/dashboard',
+      title: 'Home',
       body: RefreshIndicator(
         onRefresh: () => ref.read(authStateProvider.notifier).restoreSession(),
         child: ListView(
@@ -4435,7 +4557,7 @@ If every check in Steps 3-6 passes, this task is done — no code changes. If an
 - Reusable barcode scanner service — Task 9. ✓
 - Offline-ready repository layering (remote-only today) — baked into Tasks 8 and 11's `data/datasource/remote/` structure. ✓
 - DTO/mapper/entity separation — every data-layer task (5, 8, 11) follows `models → mappers → domain`. ✓
-- Bottom navigation — Task 7. ✓
+- Left-drawer navigation (per `designs/home.png`) — Task 7. ✓
 - Concurrency/optimistic-locking note and Approve deferral — documented in Task 13 (no Approve UI built) and the spec; backend fix tracked separately (task_5acd0d8d). ✓
 - Manual end-to-end verification against real `dtsapi` — Task 15. ✓
 
