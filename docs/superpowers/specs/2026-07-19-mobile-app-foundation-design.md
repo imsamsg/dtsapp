@@ -50,7 +50,7 @@ Base URL: `http://<host>:8081/api/v1/`
 | API client | Dio | Interceptors for auth header + token refresh |
 | Models | Freezed + json_serializable | Immutable DTOs matching API JSON exactly |
 | Secure storage | flutter_secure_storage | Access/refresh tokens, never in SharedPreferences |
-| Theme | Material 3 | Standard, themeable via `core/theme` |
+| Theme | Material 3, DTS green palette from `designs/*.png` | Standard, themeable via `core/theme`; adopts the design reference's brand colors and Login screen composition, not its tablet-width layouts |
 | Barcode scanning | `mobile_scanner`, wrapped in one `core/services/barcode_scanner_service.dart` | Camera-based scan; one implementation reused by Product search and Stock Count line entry, and by every future module (Stock Pick, POS, Purchase Receive) without re-implementing |
 | Recent searches | `shared_preferences` (small, local-only, non-business data) | UX nicety for Product search; not a business-data cache, so it doesn't conflict with the "no local DB for business data yet" decision below |
 | Local DB (business data) | **None yet** | Online-only v1 per explicit decision; add Hive/Isar only when an offline module needs it — but see repository layering below, which prepares for this without a future rewrite |
@@ -130,7 +130,7 @@ Every feature follows the same `data / domain / presentation` split so adding a 
 
 ## Dashboard
 
-Not empty, but built only from data already in the session — no new backend calls:
+Not empty, but built only from data already in the session — no new backend calls. Visually styled per `designs/home.png` (profile card, section cards on a light background), but only using data this pass actually has:
 
 - **Greeting header**: "Good morning/afternoon/evening, {firstName}" (from the login response, day-part computed client-side from device clock).
 - **Session info card**: Company (`companyId`), Branch (`branchId`), Role (`roleName`). All already returned by `/auth/login`.
@@ -160,16 +160,28 @@ Not empty, but built only from data already in the session — no new backend ca
   - **Concurrent edits — last-write-wins for v1.** `dtsapi`'s `PUT` has no version/staleness check (confirmed: no `@Version` field, no `dateUpdated` comparison), so two users editing the same count today can already silently overwrite each other in the Angular app. Mobile doesn't add protection the backend can't enforce; this is tracked in the same backend task filed for the approve/audit gaps.
 - No delete UI in this pass (endpoint exists, but destructive action from mobile needs its own confirmation-flow design later if wanted).
 
+## Visual design reference
+
+`designs/login.png`, `designs/home.png`, `designs/product_search.png` exist in this repo as the intended long-term visual direction (DTS green brand palette, left sidebar nav, KPI dashboard, rich filterable catalog with cart actions). They were authored at a tablet/web width (persistent side-by-side filter panel) and include modules and data (POS, Stock Pick, Sales KPIs, Notifications, "Last Login") that are out of scope or not backed by any `dtsapi` endpoint today (see Dashboard and Product Catalog sections below — those constraints don't change).
+
+**What this pass adopts from them:** brand color palette (deep green primary, e.g. `#0E6251` / `#0B3D2E`, teal-green CTA buttons, light card-on-tinted-background layout), the Login screen's visual composition (logo mark, "Welcome back" framing, rounded input fields with leading icons, gradient/curved background), and a left-drawer navigation shell (adapted for phone as a slide-out `Drawer`, not the mockup's permanent rail — phone width can't fit a persistent sidebar).
+
+**What this pass does not adopt:** the tablet-width two-column filter panel, cart/checkout icons on product cards, Active/Inactive/Draft status tabs, KPI sales chart, Notifications feed, and "Last Login" — all remain deferred/dropped per the Dashboard and Product Catalog sections, since building them now would mean either fabricating data or reopening scope decisions already made. Future passes that build POS, Stock Pick, or a KPI dashboard should treat these mockups as their reference.
+
 ## Navigation
 
-Bottom navigation (`StatefulShellRoute` in GoRouter) with four destinations, more natural for Android than route-only navigation:
+Left `Drawer` (slide-out via hamburger icon in the `AppBar`, per `home.png`'s chrome), not bottom navigation — matches the design reference and the decision to treat `home.png` as the intended pattern over `product_search.png`'s bottom bar.
 
-1. **Dashboard**
-2. **Products**
+Drawer items:
+1. **Home** (Dashboard)
+2. **Product** (Product Catalog)
 3. **Stock Count**
-4. **Profile** — houses Settings, Logout, Help/About; not separate top-level destinations, since they're not frequent-access actions.
+4. **Stock Pick** — shown per the design reference, but disabled/greyed with a "Coming soon" tag; not a functional route in this pass
+5. **POS** — same treatment as Stock Pick
+6. **Settings** — placeholder page in this pass (no settings to configure yet beyond what Logout covers)
+7. **Logout** — action, not a route
 
-No Notifications destination in this pass — no backend endpoint exists to back it, and an empty/fake notifications tile would be worse than not having one.
+No standalone "Profile" page/destination: the profile/session-info card lives directly on the Dashboard (per `home.png`), not behind a separate nav item. No Notifications destination or bell icon in this pass — no backend endpoint exists to back it, and an empty/fake notifications feed would be worse than not having one.
 
 ## Error handling
 
