@@ -1,0 +1,7 @@
+import '../entities/auth_session.dart';
+
+abstract interface class AuthRepository {
+  Future<AuthSession> login({required String username, required String password, String? companyId});
+  Future<AuthSession> refresh(String refreshToken);
+  Future<void> logout(String refreshToken);
+}
