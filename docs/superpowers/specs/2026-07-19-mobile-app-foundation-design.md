@@ -46,13 +46,16 @@ Base URL: `http://<host>:8081/api/v1/`
 | Layer | Choice | Why |
 |---|---|---|
 | State management | Riverpod | One provider per feature, testable, no BuildContext coupling |
-| Routing | GoRouter | Declarative, supports auth redirect guards |
+| Routing | GoRouter | Declarative, supports auth redirect guards, `StatefulShellRoute` for bottom nav |
 | API client | Dio | Interceptors for auth header + token refresh |
 | Models | Freezed + json_serializable | Immutable DTOs matching API JSON exactly |
 | Secure storage | flutter_secure_storage | Access/refresh tokens, never in SharedPreferences |
 | Theme | Material 3 | Standard, themeable via `core/theme` |
-| Barcode scanning | `mobile_scanner` | Camera-based scan for stock count lines |
-| Local DB | **None yet** | Online-only v1 per explicit decision; add Hive/Isar only when an offline module needs it |
+| Barcode scanning | `mobile_scanner`, wrapped in one `core/services/barcode_scanner_service.dart` | Camera-based scan; one implementation reused by Product search and Stock Count line entry, and by every future module (Stock Pick, POS, Purchase Receive) without re-implementing |
+| Recent searches | `shared_preferences` (small, local-only, non-business data) | UX nicety for Product search; not a business-data cache, so it doesn't conflict with the "no local DB for business data yet" decision below |
+| Local DB (business data) | **None yet** | Online-only v1 per explicit decision; add Hive/Isar only when an offline module needs it — but see repository layering below, which prepares for this without a future rewrite |
+
+**Explicitly deferred, not in this pass:** voice search (needs its own UX/permissions/package decision — real scope, not a free accessory), notifications (no backend endpoint found to back a Notifications tile yet), `permissions[]`-based authorization (would require a `dtsapi` change to expose per-action permissions instead of `roleName`/`features[]`; good future direction, tracked as a later backend conversation, not something the Flutter app can adopt unilaterally today).
 
 ## Project structure
 
@@ -60,7 +63,7 @@ Base URL: `http://<host>:8081/api/v1/`
 lib/
   app/
     app.dart                 # MaterialApp.router, theme wiring
-    router.dart               # GoRouter config + auth redirect guard
+    router.dart               # GoRouter config, StatefulShellRoute (bottom nav), auth redirect guard
     theme/                    # colors, typography, spacing, component themes
     constants/
   core/
@@ -69,26 +72,40 @@ lib/
       auth_interceptor.dart   # attaches Bearer token, handles 401 -> refresh -> retry
       api_exception.dart      # typed error mapping (network, 401, 4xx, 5xx)
     storage/
-      secure_token_storage.dart
-    services/                 # (empty for now; barcode/permission helpers land here as needed)
+      secure_token_storage.dart   # tokens + session (flutter_secure_storage)
+      recent_searches_storage.dart # local-only UX cache (shared_preferences)
+    services/
+      barcode_scanner_service.dart   # one reusable scan implementation for all modules
     widgets/                  # AppLoading, AppEmptyState, AppErrorView
   features/
     authentication/
-      data/  (datasource, repository, models: LoginRequest/LoginResponse)
+      data/
+        datasource/  (remote/ auth_remote_datasource.dart)
+        repository/  (auth_repository_impl.dart)
+        models/      (LoginRequestDto, LoginResponseDto)
+        mappers/     (LoginResponseDto -> AuthSession)
       domain/ (entities: AuthSession; repository interface; usecases: Login, Logout, RefreshToken)
       presentation/ (pages: LoginPage; providers: authProvider/authStateProvider)
     dashboard/
-      presentation/ (pages: DashboardPage; widgets: FeatureTile; providers: dashboardTilesProvider)
+      presentation/ (pages: DashboardPage; widgets: GreetingHeader, SessionInfoCard, QuickActionsGrid; providers: dashboardTilesProvider)
     product/
-      data/ (datasource, repository, models: ProductModel)
-      domain/ (entities: Product; repository interface; usecases: SearchProducts, GetProductDetail)
-      presentation/ (pages: ProductListPage, ProductDetailPage; widgets: ProductCard; providers)
+      data/
+        datasource/  (remote/ product_remote_datasource.dart)
+        repository/
+        models/      (ProductDto)
+        mappers/     (ProductDto -> Product)
+      domain/ (entities: Product; repository interface — depends only on the interface, not on "remote"; usecases: SearchProducts, GetProductDetail)
+      presentation/ (pages: ProductListPage, ProductDetailPage; widgets: ProductCard, RecentSearchesList; providers)
     stock_count/
-      data/ (datasource, repository, models: StockCountModel, StockCountLineModel)
-      domain/ (entities: StockCount, StockCountLine; repository interface; usecases: SearchStockCounts, GetStockCountDetail, CreateStockCount, UpdateStockCount, ApproveStockCount)
+      data/
+        datasource/  (remote/ stock_count_remote_datasource.dart)
+        repository/
+        models/      (StockCountDto, StockCountLineDto)
+        mappers/
+      domain/ (entities: StockCount, StockCountLine; repository interface; usecases: SearchStockCounts, GetStockCountDetail, CreateStockCount, UpdateStockCount)
       presentation/
         pages/ (StockCountListPage, StockCountDetailPage, StockCountFormPage)
-        widgets/ (StockCountCard, BarcodeScanLineEntry)
+        widgets/ (StockCountCard, BarcodeScanLineEntry, WarehouseSelector)
         providers/
   shared/
     widgets/  cards/  dialogs/  forms/
@@ -96,6 +113,10 @@ main.dart
 ```
 
 Every feature follows the same `data / domain / presentation` split so adding a new module later (Mobile POS, Stock Pick, ...) means adding a sibling folder under `features/` — no existing files change.
+
+**Offline-readiness without a rewrite:** each feature's `Repository` implementation depends on a `datasource` *interface*, currently satisfied only by `remote/`. When offline support is actually scoped, a `local/` datasource (Hive/Isar-backed) and a sync engine slot in beside `remote/` and the repository starts choosing between them — the domain layer, usecases, and UI never change. This is a structural convention now, not a library added now: no Hive/Isar dependency in this pass.
+
+**DTO isolation:** API JSON deserializes only into `*Dto` classes in `data/models`. A `mapper` converts `Dto → domain entity`. Presentation-layer widgets consume domain entities (or a thin UI-only view model where formatting differs from the domain shape, e.g. currency-formatted strings) — never the raw DTO. This means a `dtsapi` response shape change is a one-file mapper fix, not a ripple through UI code.
 
 ## Authentication flow
 
@@ -109,23 +130,46 @@ Every feature follows the same `data / domain / presentation` split so adding a 
 
 ## Dashboard
 
-- Simple grid/list of `FeatureTile`s: Product Catalog, Stock Count for this pass; other known modules render in a disabled/"coming soon" state if not in `features[]`, hidden entirely if the backend doesn't grant that feature at all (exact hide-vs-disable rule: hide if absent from `features[]`, since that mirrors how the backend already scopes access).
-- No live KPI widgets in v1 — I didn't find a single mobile-dashboard-summary endpoint in the API docs, and bolting together multiple summary calls (POS sales summary, stock alerts) is bigger than "foundation" scope. Tiles are pure navigation for now; a KPI row is a natural fast-follow spec once we pick which numbers matter.
+Not empty, but built only from data already in the session — no new backend calls:
+
+- **Greeting header**: "Good morning/afternoon/evening, {firstName}" (from the login response, day-part computed client-side from device clock).
+- **Session info card**: Company (`companyId`), Branch (`branchId`), Role (`roleName`). All already returned by `/auth/login`.
+- **"Last login" — dropped, not faked.** The login response has no last-login timestamp, and there's no other endpoint exposing it. Showing a fabricated or device-local-only value under the label "Last Login" would be misleading (looks like account activity, is actually just "last time this phone logged in"). Skipping it rather than inventing data; revisit if `dtsapi` ever exposes real last-login tracking.
+- **Quick Actions**: Product Search, New Stock Count, Scan Barcode (opens the shared barcode scanner, routes to product detail or stock-count-line-entry based on what's scanned) — all real, already-scoped actions, no placeholders.
+- **Feature tiles**: Product Catalog, Stock Count for this pass; tiles for modules not in `features[]` are hidden entirely (not shown disabled) — mirrors how the backend already scopes access, avoids advertising modules the user can never open.
+- No live KPI widgets in v1 — no mobile-dashboard-summary endpoint exists in the API docs, and assembling one from multiple summary calls (POS sales summary, stock alerts) is bigger than "foundation" scope. A KPI row is a natural fast-follow spec once we pick which numbers matter.
 - Pull-to-refresh re-validates the session (harmless no-op if token still valid) and re-evaluates `features[]`.
 
 ## Product Catalog module
 
 - `ProductListPage`: search bar (debounced), search-key selector (Any/Code/Barcode/Title), paginated results via `GET /inventory/products/search`, infinite-scroll pagination.
-- Tapping a result or scanning a barcode (via `mobile_scanner`) jumps to `ProductDetailPage` (`GET /inventory/products/{companyId}/{productTypeCode}/{productCode}`), showing title, brand, pricing (w/wo GST), cost, UOM, qty on hand.
+- **Recent searches**: last N search terms shown above results when the search box is empty, stored locally via `recent_searches_storage.dart` (`shared_preferences`, device-local, no backend). Cheap UX win, no API dependency.
+- Tapping a result or scanning a barcode (via `barcode_scanner_service.dart`) jumps to `ProductDetailPage` (`GET /inventory/products/{companyId}/{productTypeCode}/{productCode}`), showing title, brand, pricing (w/wo GST), cost, UOM, qty on hand.
 - `companyId` comes from the logged-in session, not user input.
 - Read-only in this pass — no create/edit UI (Save Product endpoint exists server-side but editing product master data from a phone is out of scope for now).
+- **Voice search deferred** — it's a real feature (speech-to-text package choice, mic permission flow, partial-transcript UX), not a one-line addition alongside recent searches. Candidate for its own small follow-up spec.
 
 ## Stock Count module
 
 - `StockCountListPage`: filtered/paginated list scoped to the session's `companyId`/`branchId`, filters for status and warehouse, via `GET /inventory/stock-counts/search`.
-- `StockCountDetailPage`: shows header (warehouse, status, totals) + line items, read-only for counts not in `OPEN` status.
-- `StockCountFormPage` (create/edit while `OPEN`): add lines either by scanning a barcode (looks up product via the Product Catalog search-by-barcode, prefills title/cost/price) or manual product search, enter `countQty` per line, submit via `POST` (create) or `PUT` (update). Approve action calls the approve endpoint and is only shown for authorized roles (gated by `features[]`/`roleName`, exact rule to confirm against how the Angular inventory app gates this today).
+- `StockCountDetailPage`: shows header (warehouse, status, totals) + line items, read-only for counts not in `OPEN` status. Shows the count's `dateUpdated` so a user can visually notice if it was recently touched by someone else (see concurrency note below).
+- `StockCountFormPage` (create/edit while `OPEN`):
+  - **Warehouse**: `WarehouseSelector` defaults to a warehouse whose `branch_code` matches the session's `branchId` (fetched via `GET /inventory/warehouses?companyId=`), but lets the user switch to any warehouse returned for the company — there is no per-user warehouse authorization concept in `dtsapi` today (checked: `companybranchuser` maps user→branch only, not user→warehouse, and the warehouse-list endpoint has no branch/user filter), so "restrict to authorized warehouses" isn't enforceable client-side without inventing a rule the backend doesn't have. This matches what the Angular app can actually do today.
+  - Add lines either by scanning a barcode (via the shared scanner service, looks up product by barcode, prefills title/cost/price) or manual product search, enter `countQty` per line, submit via `POST` (create) or `PUT` (update).
+  - **No Approve action in this pass.** Confirmed there is no permission check for approval anywhere today — not in `dtsretail-inv`, not in `dtsapi` (`StockCountController.approve` has no `@PreAuthorize` and hardcodes `"SYSTEM"` as approver, ignoring the actual user). Shipping Approve on mobile would mean either replicating that same unrestricted state on a new surface, or inventing a mobile-only rule that diverges from web — both worse than deferring. Filed as a separate backend task; mobile adds Approve once `dtsapi` has a real permission + audit fix.
+  - **Concurrent edits — last-write-wins for v1.** `dtsapi`'s `PUT` has no version/staleness check (confirmed: no `@Version` field, no `dateUpdated` comparison), so two users editing the same count today can already silently overwrite each other in the Angular app. Mobile doesn't add protection the backend can't enforce; this is tracked in the same backend task filed for the approve/audit gaps.
 - No delete UI in this pass (endpoint exists, but destructive action from mobile needs its own confirmation-flow design later if wanted).
+
+## Navigation
+
+Bottom navigation (`StatefulShellRoute` in GoRouter) with four destinations, more natural for Android than route-only navigation:
+
+1. **Dashboard**
+2. **Products**
+3. **Stock Count**
+4. **Profile** — houses Settings, Logout, Help/About; not separate top-level destinations, since they're not frequent-access actions.
+
+No Notifications destination in this pass — no backend endpoint exists to back it, and an empty/fake notifications tile would be worse than not having one.
 
 ## Error handling
 
@@ -139,7 +183,6 @@ Every feature follows the same `data / domain / presentation` split so adding a 
 - Unit tests for `AuthInterceptor` refresh-and-retry logic and for repository/usecase mapping of API JSON → domain entities.
 - No integration/e2e tests against the live `dtsapi` in this pass (would need a test company/branch and stock-count fixtures on the real `nexgen` DB — separate concern).
 
-## Open items to confirm with the Angular inventory app before Stock Count implementation
+## Related backend follow-up (separate task, not part of this build)
 
-- Exact role/feature check used to gate "Approve" — should match `dtsretail-inv`'s existing rule rather than inventing a new one.
-- Whether `whseCode` should be user-selectable at count-creation time or defaulted from the user's assigned branch/warehouse (same question applies to the existing web app).
+While grounding the Stock Count design against the real `dtsapi` code, three gaps were found and filed as a standalone task against `D:\Backend\dtsapi` (not part of this Flutter build, doesn't block it): the approve endpoint has no permission check, it hardcodes `"SYSTEM"` as the approver instead of the real user, and stock count updates have no optimistic-locking/staleness check. Mobile Approve support is intentionally deferred until that's resolved (see Stock Count module section above).
