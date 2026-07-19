@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../features/authentication/presentation/pages/login_page.dart';
 import '../features/authentication/presentation/providers/auth_providers.dart';
 import '../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../features/product/presentation/pages/product_detail_page.dart';
 import '../features/product/presentation/pages/product_list_page.dart';
 import '../features/settings/presentation/pages/settings_page.dart';
 import '../features/stock_count/presentation/pages/stock_count_list_page.dart';
@@ -25,7 +26,20 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/dashboard', builder: (context, state) => const DashboardPage()),
-      GoRoute(path: '/products', builder: (context, state) => const ProductListPage()),
+      GoRoute(
+        path: '/products',
+        builder: (context, state) => const ProductListPage(),
+        routes: [
+          GoRoute(
+            path: ':companyId/:productTypeCode/:productCode',
+            builder: (context, state) => ProductDetailPage(
+              companyId: state.pathParameters['companyId']!,
+              productTypeCode: state.pathParameters['productTypeCode']!,
+              productCode: state.pathParameters['productCode']!,
+            ),
+          ),
+        ],
+      ),
       GoRoute(path: '/stock-counts', builder: (context, state) => const StockCountListPage()),
       GoRoute(path: '/settings', builder: (context, state) => const SettingsPage()),
     ],
