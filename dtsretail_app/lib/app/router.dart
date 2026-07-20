@@ -8,6 +8,7 @@ import '../features/product/presentation/pages/product_detail_page.dart';
 import '../features/product/presentation/pages/product_list_page.dart';
 import '../features/settings/presentation/pages/settings_page.dart';
 import '../features/stock_count/presentation/pages/stock_count_detail_page.dart';
+import '../features/stock_count/presentation/pages/stock_count_form_page.dart';
 import '../features/stock_count/presentation/pages/stock_count_list_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -45,6 +46,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/stock-counts',
         builder: (context, state) => const StockCountListPage(),
         routes: [
+          GoRoute(
+            path: 'new',
+            builder: (context, state) => StockCountFormPage(
+              companyId: state.uri.queryParameters['companyId'],
+              branchId: state.uri.queryParameters['branchId'],
+              stockcntId: state.uri.queryParameters['stockcntId'],
+            ),
+          ),
           GoRoute(
             path: ':companyId/:branchId/:stockcntId',
             builder: (context, state) => StockCountDetailPage(
