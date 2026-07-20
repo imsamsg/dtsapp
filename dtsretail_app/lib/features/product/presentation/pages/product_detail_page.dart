@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/api/api_exception.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../providers/product_providers.dart';
 
@@ -40,7 +41,10 @@ class ProductDetailPage extends ConsumerWidget {
           ],
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => AppErrorView(message: error.toString(), onRetry: () => ref.invalidate(productDetailProvider(args))),
+        error: (error, _) => AppErrorView(
+          message: error is ApiException ? error.message : 'An unexpected error occurred.',
+          onRetry: () => ref.invalidate(productDetailProvider(args)),
+        ),
       ),
     );
   }

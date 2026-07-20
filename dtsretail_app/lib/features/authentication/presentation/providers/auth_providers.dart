@@ -1,5 +1,5 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/api/api_exception.dart';
 import '../../../../core/api/auth_interceptor.dart';
 import '../../../../core/api/dio_client.dart';
 import '../../../../core/storage/secure_token_storage.dart';
@@ -78,8 +78,8 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       );
       await _ref.read(secureTokenStorageProvider).saveSession(session);
       state = AuthAuthenticated(session);
-    } on DioException catch (e) {
-      final message = e.response?.statusCode == 401
+    } on ApiException catch (e) {
+      final message = e is UnauthorizedException
           ? 'Invalid username or password.'
           : 'Unable to log in. Please try again.';
       state = AuthUnauthenticated(errorMessage: message);

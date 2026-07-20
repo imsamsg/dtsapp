@@ -4,6 +4,9 @@ sealed class ApiException implements Exception {
   const ApiException(this.message);
   final String message;
 
+  @override
+  String toString() => message;
+
   factory ApiException.fromDioException(DioException e) {
     if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||

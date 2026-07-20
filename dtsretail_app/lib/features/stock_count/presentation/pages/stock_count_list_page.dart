@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/api/api_exception.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
@@ -40,7 +41,10 @@ class StockCountListPage extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => AppErrorView(message: error.toString(), onRetry: () => ref.invalidate(stockCountSearchProvider(query))),
+        error: (error, _) => AppErrorView(
+          message: error is ApiException ? error.message : 'An unexpected error occurred.',
+          onRetry: () => ref.invalidate(stockCountSearchProvider(query)),
+        ),
       ),
     );
   }

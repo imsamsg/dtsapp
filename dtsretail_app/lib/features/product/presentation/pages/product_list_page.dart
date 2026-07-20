@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/api/api_exception.dart';
 import '../../../../core/services/barcode_scanner_service.dart';
 import '../../../../core/storage/recent_searches_storage.dart';
 import '../../../../core/widgets/app_error_view.dart';
@@ -11,7 +12,11 @@ import '../widgets/product_card.dart';
 import '../widgets/recent_searches_list.dart';
 
 class ProductListPage extends ConsumerStatefulWidget {
-  const ProductListPage({super.key});
+  const ProductListPage({super.key, this.initialSearch});
+
+  /// Seeds the initial search query, e.g. a barcode scanned from the
+  /// dashboard's "Scan Barcode" quick action before navigating here.
+  final String? initialSearch;
 
   @override
   ConsumerState<ProductListPage> createState() => _ProductListPageState();
@@ -20,6 +25,16 @@ class ProductListPage extends ConsumerStatefulWidget {
 class _ProductListPageState extends ConsumerState<ProductListPage> {
   final _searchController = TextEditingController();
   String _submittedQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialSearch?.trim();
+    if (initial != null && initial.isNotEmpty) {
+      _searchController.text = initial;
+      _submittedQuery = initial;
+    }
+  }
 
   @override
   void dispose() {
@@ -101,7 +116,10 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => AppErrorView(message: error.toString(), onRetry: () => ref.invalidate(productSearchProvider(query))),
+      error: (error, _) => AppErrorView(
+        message: error is ApiException ? error.message : 'An unexpected error occurred.',
+        onRetry: () => ref.invalidate(productSearchProvider(query)),
+      ),
     );
   }
 
@@ -112,7 +130,7 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
   }
 
   Future<void> _scanAndSearch(String? companyId) async {
-    const scanner = BarcodeScannerService();
+    final scanner = ref.read(barcodeScannerServiceProvider);
     final barcode = await scanner.scan(context);
     if (barcode != null) {
       _searchController.text = barcode;

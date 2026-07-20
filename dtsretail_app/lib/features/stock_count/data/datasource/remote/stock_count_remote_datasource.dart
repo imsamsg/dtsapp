@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../../../../core/api/api_call_guard.dart';
 import '../../models/stock_count_dto.dart';
 
 class StockCountRemoteDatasource {
@@ -18,32 +19,38 @@ class StockCountRemoteDatasource {
     String? status,
     int page = 0,
     int size = 20,
-  }) async {
-    final response = await _dio.get('/inventory/stock-counts/search', queryParameters: {
-      'companyId': companyId,
-      'branchId': branchId,
-      if (status != null) 'status': status,
-      'page': page,
-      'size': size,
+  }) {
+    return guardApiCall(() async {
+      final response = await _dio.get('/inventory/stock-counts/search', queryParameters: {
+        'companyId': companyId,
+        'branchId': branchId,
+        if (status != null) 'status': status,
+        'page': page,
+        'size': size,
+      });
+      final body = response.data as Map<String, dynamic>;
+      return StockCountSearchResponseDto.fromJson(body['data'] as Map<String, dynamic>);
     });
-    final body = response.data as Map<String, dynamic>;
-    return StockCountSearchResponseDto.fromJson(body['data'] as Map<String, dynamic>);
   }
 
-  Future<StockCountDto> getDetail({required String companyId, required String branchId, required String stockcntId}) async {
-    final response = await _dio.get('/inventory/stock-counts/$companyId/$branchId/$stockcntId');
-    final body = response.data as Map<String, dynamic>;
-    return StockCountDto.fromJson(body['data'] as Map<String, dynamic>);
+  Future<StockCountDto> getDetail({required String companyId, required String branchId, required String stockcntId}) {
+    return guardApiCall(() async {
+      final response = await _dio.get('/inventory/stock-counts/$companyId/$branchId/$stockcntId');
+      final body = response.data as Map<String, dynamic>;
+      return StockCountDto.fromJson(body['data'] as Map<String, dynamic>);
+    });
   }
 
-  Future<StockCountDto> create(StockCountDto dto, {required String userId}) async {
-    final response = await _dio.post(
-      '/inventory/stock-counts',
-      data: dto.toJson(),
-      options: Options(headers: {'X-User-Id': userId}),
-    );
-    final body = response.data as Map<String, dynamic>;
-    return StockCountDto.fromJson(body['data'] as Map<String, dynamic>);
+  Future<StockCountDto> create(StockCountDto dto, {required String userId}) {
+    return guardApiCall(() async {
+      final response = await _dio.post(
+        '/inventory/stock-counts',
+        data: dto.toJson(),
+        options: Options(headers: {'X-User-Id': userId}),
+      );
+      final body = response.data as Map<String, dynamic>;
+      return StockCountDto.fromJson(body['data'] as Map<String, dynamic>);
+    });
   }
 
   Future<StockCountDto> update(
@@ -52,13 +59,15 @@ class StockCountRemoteDatasource {
     required String branchId,
     required String stockcntId,
     required String userId,
-  }) async {
-    final response = await _dio.put(
-      '/inventory/stock-counts/$companyId/$branchId/$stockcntId',
-      data: dto.toJson(),
-      options: Options(headers: {'X-User-Id': userId}),
-    );
-    final body = response.data as Map<String, dynamic>;
-    return StockCountDto.fromJson(body['data'] as Map<String, dynamic>);
+  }) {
+    return guardApiCall(() async {
+      final response = await _dio.put(
+        '/inventory/stock-counts/$companyId/$branchId/$stockcntId',
+        data: dto.toJson(),
+        options: Options(headers: {'X-User-Id': userId}),
+      );
+      final body = response.data as Map<String, dynamic>;
+      return StockCountDto.fromJson(body['data'] as Map<String, dynamic>);
+    });
   }
 }

@@ -72,7 +72,7 @@ class DashboardPage extends ConsumerWidget {
     final scanner = ref.read(barcodeScannerServiceProvider);
     final barcode = await scanner.scan(context);
     if (barcode != null && context.mounted) {
-      context.push('/products');
+      context.push(Uri(path: '/products', queryParameters: {'barcode': barcode}).toString());
     }
   }
 }

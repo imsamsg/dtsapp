@@ -121,7 +121,7 @@ void main() {
     expect(find.text('Stock Counts Page'), findsOneWidget);
   });
 
-  testWidgets('scanning a barcode navigates to Product Catalog', (tester) async {
+  testWidgets('scanning a barcode navigates to Product Catalog and forwards the scanned barcode', (tester) async {
     await _growSurface(tester);
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -130,7 +130,12 @@ void main() {
       initialLocation: '/dashboard',
       routes: [
         GoRoute(path: '/dashboard', builder: (context, state) => const DashboardPage()),
-        GoRoute(path: '/products', builder: (context, state) => const Scaffold(body: Text('Products Page'))),
+        GoRoute(
+          path: '/products',
+          builder: (context, state) => Scaffold(
+            body: Text('Products Page: barcode=${state.uri.queryParameters['barcode']}'),
+          ),
+        ),
         GoRoute(path: '/stock-counts', builder: (context, state) => const Scaffold(body: Text('Stock Counts Page'))),
       ],
     );
@@ -151,7 +156,10 @@ void main() {
     await tester.tap(find.text('Scan Barcode'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Products Page'), findsOneWidget);
+    // The scanned barcode must be forwarded as a query param so the product
+    // list page can seed its search from it, rather than landing on an empty
+    // list with the scanned value discarded.
+    expect(find.text('Products Page: barcode=1234567890'), findsOneWidget);
   });
 
   testWidgets('cancelling a barcode scan stays on the dashboard', (tester) async {

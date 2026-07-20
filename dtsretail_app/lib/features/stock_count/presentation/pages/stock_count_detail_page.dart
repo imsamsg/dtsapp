@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/api/api_exception.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../domain/entities/stock_count.dart';
 import '../providers/stock_count_providers.dart';
@@ -52,7 +53,10 @@ class StockCountDetailPage extends ConsumerWidget {
           ],
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => AppErrorView(message: error.toString(), onRetry: () => ref.invalidate(stockCountDetailProvider(args))),
+        error: (error, _) => AppErrorView(
+          message: error is ApiException ? error.message : 'An unexpected error occurred.',
+          onRetry: () => ref.invalidate(stockCountDetailProvider(args)),
+        ),
       ),
       floatingActionButton: detailAsync.maybeWhen(
         data: (stockCount) => stockCount.isOpen

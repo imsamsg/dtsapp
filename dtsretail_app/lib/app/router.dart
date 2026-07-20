@@ -30,7 +30,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/dashboard', builder: (context, state) => const DashboardPage()),
       GoRoute(
         path: '/products',
-        builder: (context, state) => const ProductListPage(),
+        builder: (context, state) => ProductListPage(initialSearch: state.uri.queryParameters['barcode']),
         routes: [
           GoRoute(
             path: ':companyId/:productTypeCode/:productCode',
