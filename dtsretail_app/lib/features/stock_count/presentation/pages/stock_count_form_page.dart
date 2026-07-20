@@ -221,7 +221,7 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
   }
 
   Future<void> _scanAndAddLine(String companyId) async {
-    const scanner = BarcodeScannerService();
+    final scanner = ref.read(barcodeScannerServiceProvider);
     final barcode = await scanner.scan(context);
     if (barcode == null) return;
 
@@ -240,14 +240,38 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
       final product = result.items.first;
       setState(() {
         _errorMessage = null;
-        _lines.add(StockCountLine(
-          productCode: product.productCode,
-          productTypeCode: product.productTypeCode,
-          productTitle: product.productTitle,
-          priceWithGst: product.priceWithGst,
-          cost: product.cost,
-          countQty: 1,
-        ));
+        // A product is uniquely identified by (productTypeCode, productCode)
+        // — the same composite key BarcodeScanLineEntry uses for its list
+        // item ValueKeys. If this product is already in _lines, bump its
+        // qty instead of appending a second line: appending would create two
+        // StockCountLines with an identical ValueKey, which Flutter's list
+        // reconciliation (used by the Column BarcodeScanLineEntry renders
+        // into) rejects as a duplicate sibling key. Merging on rescan also
+        // matches real usage — a worker rescanning the same item expects the
+        // qty to go up, not a second row for the same product.
+        final existingIndex = _lines.indexWhere(
+          (line) => line.productTypeCode == product.productTypeCode && line.productCode == product.productCode,
+        );
+        if (existingIndex != -1) {
+          final existing = _lines[existingIndex];
+          _lines[existingIndex] = StockCountLine(
+            productCode: existing.productCode,
+            productTypeCode: existing.productTypeCode,
+            productTitle: existing.productTitle,
+            priceWithGst: existing.priceWithGst,
+            cost: existing.cost,
+            countQty: existing.countQty + 1,
+          );
+        } else {
+          _lines.add(StockCountLine(
+            productCode: product.productCode,
+            productTypeCode: product.productTypeCode,
+            productTitle: product.productTitle,
+            priceWithGst: product.priceWithGst,
+            cost: product.cost,
+            countQty: 1,
+          ));
+        }
       });
     } catch (error) {
       if (!mounted) return;

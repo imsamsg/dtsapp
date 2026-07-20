@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+
+/// Exposed as a provider (rather than only via direct construction) so
+/// widget tests can override it with a fake that returns fixed barcodes
+/// without pushing the real camera UI, which has no test seam.
+final barcodeScannerServiceProvider = Provider<BarcodeScannerService>((ref) => const BarcodeScannerService());
 
 class BarcodeScannerService {
   const BarcodeScannerService();

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dtsretail_app/core/services/barcode_scanner_service.dart';
 import 'package:dtsretail_app/features/authentication/domain/entities/auth_session.dart';
 import 'package:dtsretail_app/features/authentication/presentation/providers/auth_providers.dart';
+import 'package:dtsretail_app/features/product/domain/entities/product.dart';
+import 'package:dtsretail_app/features/product/domain/repository/product_repository.dart';
+import 'package:dtsretail_app/features/product/presentation/providers/product_providers.dart';
 import 'package:dtsretail_app/features/stock_count/domain/entities/stock_count.dart';
 import 'package:dtsretail_app/features/stock_count/domain/entities/stock_count_line.dart';
 import 'package:dtsretail_app/features/stock_count/domain/entities/warehouse.dart';
@@ -114,6 +118,57 @@ class _FakeStockCountRepository implements StockCountRepository {
     ];
   }
 }
+
+/// Fake [BarcodeScannerService] that returns a fixed barcode instead of
+/// pushing the real (untestable, camera-backed) scanner UI.
+class _FakeBarcodeScannerService implements BarcodeScannerService {
+  _FakeBarcodeScannerService(this.barcode);
+
+  final String barcode;
+
+  @override
+  Future<String?> scan(BuildContext context) async => barcode;
+}
+
+/// Fake [ProductRepository] whose `search` always resolves to the same
+/// single product, regardless of the search string passed in — enough to
+/// simulate "scanning the same barcode" resolving to the same product twice.
+class _FakeProductRepository implements ProductRepository {
+  _FakeProductRepository(this._product);
+
+  final Product _product;
+
+  @override
+  Future<ProductSearchResult> search({
+    required String companyId,
+    String? searchString,
+    int searchKey = 0,
+    int page = 0,
+    int size = 20,
+  }) async {
+    return ProductSearchResult(items: [_product], totalElements: 1, totalPages: 1);
+  }
+
+  @override
+  Future<Product> getDetail({required String companyId, required String productTypeCode, required String productCode}) async {
+    return _product;
+  }
+}
+
+const _scannedProduct = Product(
+  companyId: 'BAS',
+  productTypeCode: 'BOOK',
+  productCode: 'P002',
+  productBarcode: '1234567890',
+  productTitle: 'Scanned Product',
+  productBrand: 'Acme',
+  isEnabled: true,
+  priceWithGst: 12,
+  priceWithoutGst: 11,
+  cost: 6,
+  uom: 'EA',
+  qtyOnHand: 50,
+);
 
 const _existingLine = StockCountLine(
   productCode: 'P001',
@@ -256,6 +311,43 @@ void main() {
       expect(find.text('Save'), findsNothing);
       expect(find.text('Scan barcode to add line'), findsNothing);
       expect(fakeRepo.updateCalls, isEmpty);
+    });
+
+    testWidgets('scanning the same product twice merges into one line instead of duplicating it', (tester) async {
+      final fakeRepo = _FakeStockCountRepository({});
+      final fakeProductRepo = _FakeProductRepository(_scannedProduct);
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            stockCountRepositoryProvider.overrideWithValue(fakeRepo),
+            productRepositoryProvider.overrideWithValue(fakeProductRepo),
+            barcodeScannerServiceProvider.overrideWithValue(_FakeBarcodeScannerService('1234567890')),
+            authStateProvider.overrideWith((ref) => _FakeAuthStateNotifier(_authenticatedState(), _ReadOnlyRef(container))),
+          ],
+          child: const MaterialApp(home: StockCountFormPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // First scan adds a new line with qty 1.
+      await tester.tap(find.text('Scan barcode to add line'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Scanned Product'), findsOneWidget);
+      expect(find.text('1.0'), findsOneWidget);
+
+      // Second scan of the same barcode/product must merge into the existing
+      // line (qty -> 2) rather than adding a second ListTile with the same
+      // ValueKey (productTypeCode_productCode), which would otherwise throw
+      // a duplicate GlobalKey/duplicate-key FlutterError during reconciliation.
+      await tester.tap(find.text('Scan barcode to add line'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Scanned Product'), findsOneWidget);
+      expect(find.text('2.0'), findsOneWidget);
     });
   });
 }

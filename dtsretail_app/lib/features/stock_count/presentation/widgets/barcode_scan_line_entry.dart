@@ -39,11 +39,9 @@ class BarcodeScanLineEntry extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: TextFormField(
-                      initialValue: line.countQty.toString(),
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Qty'),
-                      onChanged: (value) => onQtyChanged(index, double.tryParse(value) ?? line.countQty),
+                    child: _QtyField(
+                      qty: line.countQty,
+                      onChanged: (qty) => onQtyChanged(index, qty),
                     ),
                   ),
                   IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => onRemove(index)),
@@ -53,6 +51,75 @@ class BarcodeScanLineEntry extends StatelessWidget {
           );
         }),
       ],
+    );
+  }
+}
+
+/// Qty input for a single line. Because the containing `ListTile` is keyed
+/// by product identity (not list index — see the `ValueKey` above), the same
+/// row/field is reused when its `qty` changes programmatically (e.g. a
+/// rescan merging into the existing line bumps `countQty`) rather than by
+/// the user typing into it. `TextFormField`'s `initialValue` is only applied
+/// once, in `initState` — a later change to `initialValue` on an already-
+/// built field is silently ignored — so a plain `TextFormField` would keep
+/// showing the pre-merge quantity until the user happened to touch the
+/// field. This widget owns its `TextEditingController` and explicitly
+/// re-syncs it in `didUpdateWidget` whenever `qty` changes externally, but
+/// only while the field is unfocused, so it never clobbers text the user is
+/// actively editing (during typing, `qty` and the controller's text are
+/// already in agreement, so no sync is needed).
+class _QtyField extends StatefulWidget {
+  const _QtyField({required this.qty, required this.onChanged});
+
+  final double qty;
+  final ValueChanged<double> onChanged;
+
+  @override
+  State<_QtyField> createState() => _QtyFieldState();
+}
+
+class _QtyFieldState extends State<_QtyField> {
+  late final TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.qty.toString());
+  }
+
+  @override
+  void didUpdateWidget(covariant _QtyField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.qty != oldWidget.qty && !_focusNode.hasFocus) {
+      // Deferred to a post-frame callback: assigning to the controller's
+      // text synchronously here would notify the TextFormField's internal
+      // listener, which calls setState while this widget's ancestors (the
+      // page's Form) are still mid-build, and Flutter forbids that
+      // ("setState() or markNeedsBuild() called during build").
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_focusNode.hasFocus) {
+          _controller.text = widget.qty.toString();
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: _controller,
+      focusNode: _focusNode,
+      keyboardType: TextInputType.number,
+      decoration: const InputDecoration(labelText: 'Qty'),
+      onChanged: (value) => widget.onChanged(double.tryParse(value) ?? widget.qty),
     );
   }
 }
