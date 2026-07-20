@@ -7,6 +7,7 @@ import '../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../features/product/presentation/pages/product_detail_page.dart';
 import '../features/product/presentation/pages/product_list_page.dart';
 import '../features/settings/presentation/pages/settings_page.dart';
+import '../features/stock_count/presentation/pages/stock_count_detail_page.dart';
 import '../features/stock_count/presentation/pages/stock_count_list_page.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -40,7 +41,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      GoRoute(path: '/stock-counts', builder: (context, state) => const StockCountListPage()),
+      GoRoute(
+        path: '/stock-counts',
+        builder: (context, state) => const StockCountListPage(),
+        routes: [
+          GoRoute(
+            path: ':companyId/:branchId/:stockcntId',
+            builder: (context, state) => StockCountDetailPage(
+              companyId: state.pathParameters['companyId']!,
+              branchId: state.pathParameters['branchId']!,
+              stockcntId: state.pathParameters['stockcntId']!,
+            ),
+          ),
+        ],
+      ),
       GoRoute(path: '/settings', builder: (context, state) => const SettingsPage()),
     ],
   );
