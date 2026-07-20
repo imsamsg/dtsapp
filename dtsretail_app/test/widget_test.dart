@@ -29,7 +29,7 @@ void main() {
 
     expect(find.text('DTS Retail'), findsOneWidget);
     expect(find.byKey(const Key('username_field')), findsOneWidget);
-    expect(find.text('Dashboard'), findsNothing);
+    expect(find.text('Home'), findsNothing); // DashboardPage's AppBar title
   });
 
   testWidgets('authenticated users land on the dashboard behind AppPageScaffold', (tester) async {
@@ -62,7 +62,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Home'), findsOneWidget); // AppBar title on DashboardPage
-    expect(find.text('Dashboard'), findsOneWidget); // stub body content
+    expect(find.textContaining('Jane'), findsOneWidget); // GreetingHeader uses the session's first name
     expect(find.byIcon(Icons.menu), findsOneWidget); // hamburger opens AppDrawer
   });
 }
