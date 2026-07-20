@@ -225,29 +225,34 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
     final barcode = await scanner.scan(context);
     if (barcode == null) return;
 
-    final result = await ref.read(searchProductsUsecaseProvider)(
-      companyId: companyId,
-      searchString: barcode,
-      searchKey: 3,
-      size: 1,
-    );
-    if (result.items.isEmpty) {
-      setState(() => _errorMessage = 'No product found for barcode $barcode');
-      return;
-    }
+    try {
+      final result = await ref.read(searchProductsUsecaseProvider)(
+        companyId: companyId,
+        searchString: barcode,
+        searchKey: 3,
+        size: 1,
+      );
+      if (result.items.isEmpty) {
+        setState(() => _errorMessage = 'No product found for barcode $barcode');
+        return;
+      }
 
-    final product = result.items.first;
-    setState(() {
-      _errorMessage = null;
-      _lines.add(StockCountLine(
-        productCode: product.productCode,
-        productTypeCode: product.productTypeCode,
-        productTitle: product.productTitle,
-        priceWithGst: product.priceWithGst,
-        cost: product.cost,
-        countQty: 1,
-      ));
-    });
+      final product = result.items.first;
+      setState(() {
+        _errorMessage = null;
+        _lines.add(StockCountLine(
+          productCode: product.productCode,
+          productTypeCode: product.productTypeCode,
+          productTitle: product.productTitle,
+          priceWithGst: product.priceWithGst,
+          cost: product.cost,
+          countQty: 1,
+        ));
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Failed to look up product: $error');
+    }
   }
 
   Future<void> _submit(AuthSession session) async {

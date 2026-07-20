@@ -31,6 +31,7 @@ class BarcodeScanLineEntry extends StatelessWidget {
           final index = entry.key;
           final line = entry.value;
           return ListTile(
+            key: ValueKey('${line.productTypeCode}_${line.productCode}'),
             title: Text(line.productTitle.isEmpty ? line.productCode : line.productTitle),
             subtitle: Text(line.productCode),
             trailing: SizedBox(
