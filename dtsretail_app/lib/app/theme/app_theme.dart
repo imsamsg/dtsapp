@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// Palette sampled from designs/login.png and designs/home.png (DTS brand green).
+/// Palette sourced from designs/appdesign.png's brand color swatches.
 class AppColors {
   AppColors._();
 
-  static const primary = Color(0xFF0E6251); // teal-green CTA / brand accent
-  static const primaryDark = Color(0xFF0B3D2E); // sidebar / gradient background
-  static const surfaceTint = Color(0xFFF3F7F5); // light card-on-tinted-background
+  static const primary = Color(0xFF0F766E); // teal-green CTA / brand accent
+  static const primaryDark = Color(0xFF0B4F49); // gradient header dark end (manual shade; not in the swatch sheet)
+  static const accent = Color(0xFF14BBA6); // secondary accent, gradient mid-tone
+  static const surfaceTint = Color(0xFFF0FDF4); // light card-on-tinted-background
+  static const danger = Color(0xFFEF4444); // error state
 }
 
 final ThemeData appThemeLight = ThemeData(
