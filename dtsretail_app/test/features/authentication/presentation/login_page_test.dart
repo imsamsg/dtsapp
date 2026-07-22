@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dtsretail_app/core/storage/remembered_username_storage.dart';
+import 'package:dtsretail_app/features/authentication/domain/entities/auth_session.dart';
 import 'package:dtsretail_app/features/authentication/presentation/pages/login_page.dart';
 import 'package:dtsretail_app/features/authentication/presentation/providers/auth_providers.dart';
 
@@ -123,6 +125,112 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(passwordFieldFocus?.hasFocus, isFalse);
+  });
+
+  testWidgets('remembers the username after a successful login when Remember Me is checked', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final storage = RememberedUsernameStorage(prefs);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final fakeSession = AuthSession(
+      loginId: 'sam.tan',
+      firstName: 'Sam',
+      lastName: 'Tan',
+      fullName: 'Sam Tan',
+      companyId: 'BAS',
+      branchId: 'BAS1',
+      roleName: 'STAFF',
+      features: const ['PRODUCT_VIEW'],
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      accessTokenExpiresAt: DateTime.now().add(const Duration(minutes: 10)),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => _FakeAuthStateNotifier(
+              const AuthUnauthenticated(),
+              _ReadOnlyRef(container),
+              loginResult: AuthAuthenticated(fakeSession),
+            ),
+          ),
+          rememberedUsernameStorageProvider.overrideWith((ref) async => storage),
+        ],
+        child: const MaterialApp(home: LoginPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('username_field')), 'sam.tan');
+    await tester.enterText(find.byKey(const Key('password_field')), 'secret');
+    await tester.tap(find.byKey(const Key('remember_me_checkbox')));
+    await tester.tap(find.byKey(const Key('login_button')));
+    await tester.pumpAndSettle();
+
+    expect(storage.read(), 'sam.tan');
+  });
+
+  testWidgets('does not persist the username after a failed login', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final storage = RememberedUsernameStorage(prefs);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => _FakeAuthStateNotifier(
+              const AuthUnauthenticated(),
+              _ReadOnlyRef(container),
+              loginResult: const AuthUnauthenticated(errorMessage: 'Invalid username or password.'),
+            ),
+          ),
+          rememberedUsernameStorageProvider.overrideWith((ref) async => storage),
+        ],
+        child: const MaterialApp(home: LoginPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('username_field')), 'wrong.user');
+    await tester.enterText(find.byKey(const Key('password_field')), 'wrong');
+    await tester.tap(find.byKey(const Key('remember_me_checkbox')));
+    await tester.tap(find.byKey(const Key('login_button')));
+    await tester.pumpAndSettle();
+
+    expect(storage.read(), isNull);
+  });
+
+  testWidgets('prefills the username and checks Remember Me when one was previously remembered', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final storage = RememberedUsernameStorage(prefs);
+    await storage.save('sam.tan');
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => _FakeAuthStateNotifier(const AuthUnauthenticated(), _ReadOnlyRef(container)),
+          ),
+          rememberedUsernameStorageProvider.overrideWith((ref) async => storage),
+        ],
+        child: const MaterialApp(home: LoginPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('sam.tan'), findsOneWidget);
+    final checkbox = tester.widget<Checkbox>(find.byKey(const Key('remember_me_checkbox')));
+    expect(checkbox.value, isTrue);
   });
 }
 

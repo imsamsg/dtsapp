@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/storage/remembered_username_storage.dart';
 import '../providers/auth_providers.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -29,6 +30,18 @@ class _LoginPageState extends ConsumerState<LoginPage> with SingleTickerProvider
     _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
         .animate(CurvedAnimation(parent: _entranceController, curve: Curves.easeOut));
     _entranceController.forward();
+    _loadRememberedUsername();
+  }
+
+  Future<void> _loadRememberedUsername() async {
+    final storage = await ref.read(rememberedUsernameStorageProvider.future);
+    final saved = storage.read();
+    if (saved != null && mounted) {
+      setState(() {
+        _usernameController.text = saved;
+        _rememberMe = true;
+      });
+    }
   }
 
   @override
@@ -171,6 +184,16 @@ class _LoginPageState extends ConsumerState<LoginPage> with SingleTickerProvider
           username: username,
           password: _passwordController.text,
         );
+
+    if (!mounted) return;
+    if (ref.read(authStateProvider) is AuthAuthenticated) {
+      final storage = await ref.read(rememberedUsernameStorageProvider.future);
+      if (_rememberMe) {
+        await storage.save(username);
+      } else {
+        await storage.clear();
+      }
+    }
   }
 }
 
