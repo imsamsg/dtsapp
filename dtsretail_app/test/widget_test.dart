@@ -27,7 +27,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('DTS Retail'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget); // LoginPage header (redesigned in Task 3)
     expect(find.byKey(const Key('username_field')), findsOneWidget);
     expect(find.text('Home'), findsNothing); // DashboardPage's AppBar title
   });
