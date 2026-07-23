@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/api/api_exception.dart';
 import '../../../../core/widgets/app_error_view.dart';
+import '../../../../shared/widgets/info_section_card.dart';
 import '../../domain/entities/product.dart';
 import '../providers/product_providers.dart';
 import '../widgets/product_badge.dart';
@@ -52,12 +53,12 @@ class ProductDetailPage extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 20),
-            _InfoCard(
+            InfoSectionCard(
               title: 'Details',
               rows: [('Code', product.productCode), ('Barcode', product.productBarcode), ('UOM', product.uom)],
             ),
             const SizedBox(height: 12),
-            _InfoCard(
+            InfoSectionCard(
               title: 'Pricing',
               rows: [
                 ('Price (incl. GST)', '\$${product.priceWithGst.toStringAsFixed(2)}'),
@@ -73,43 +74,6 @@ class ProductDetailPage extends ConsumerWidget {
           message: error is ApiException ? error.message : 'An unexpected error occurred.',
           onRetry: () => ref.invalidate(productDetailProvider(args)),
         ),
-      ),
-    );
-  }
-}
-
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.title, required this.rows});
-
-  final String title;
-  final List<(String, String)> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-          const SizedBox(height: 10),
-          for (final (label, value) in rows)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(label, style: const TextStyle(color: AppColors.neutral)),
-                  Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-        ],
       ),
     );
   }
