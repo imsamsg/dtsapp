@@ -139,12 +139,15 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
   Widget _searchKeyDropdown(String? companyId) {
     return DropdownButtonFormField<int>(
       initialValue: _searchKey,
+      isExpanded: true,
       decoration: InputDecoration(
         isDense: true,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
-      items: _searchKeyLabels.entries.map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value))).toList(),
+      items: _searchKeyLabels.entries
+          .map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value, overflow: TextOverflow.ellipsis)))
+          .toList(),
       onChanged: (value) {
         if (value == null) return;
         setState(() => _searchKey = value);
@@ -157,12 +160,16 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
     final currentIndex = _sortOptions.indexWhere((o) => o.sortBy == _sortBy && o.sortDirection == _sortDirection);
     return DropdownButtonFormField<int>(
       initialValue: currentIndex,
+      isExpanded: true,
       decoration: InputDecoration(
         isDense: true,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
-      items: [for (var i = 0; i < _sortOptions.length; i++) DropdownMenuItem(value: i, child: Text(_sortOptions[i].label))],
+      items: [
+        for (var i = 0; i < _sortOptions.length; i++)
+          DropdownMenuItem(value: i, child: Text(_sortOptions[i].label, overflow: TextOverflow.ellipsis)),
+      ],
       onChanged: (value) {
         if (value == null) return;
         final option = _sortOptions[value];
