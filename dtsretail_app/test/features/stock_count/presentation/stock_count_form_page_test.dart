@@ -215,7 +215,7 @@ const _postedStockCount = StockCount(
 
 void main() {
   group('StockCountFormPage', () {
-    testWidgets('create mode blocks submission until a warehouse and at least one line are present', (tester) async {
+    testWidgets('create mode without a whseCode shows a defensive error and no form', (tester) async {
       final fakeRepo = _FakeStockCountRepository({});
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -231,13 +231,34 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.text('No warehouse was selected. Please start again from Stock Counts.'), findsOneWidget);
+      expect(find.text('Save'), findsNothing);
+      expect(fakeRepo.createCalls, isEmpty);
+    });
+
+    testWidgets('create mode with a whseCode shows the warehouse read-only and blocks submission with no lines', (tester) async {
+      final fakeRepo = _FakeStockCountRepository({});
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            stockCountRepositoryProvider.overrideWithValue(fakeRepo),
+            authStateProvider.overrideWith((ref) => _FakeAuthStateNotifier(_authenticatedState(), _ReadOnlyRef(container))),
+          ],
+          child: const MaterialApp(home: StockCountFormPage(whseCode: 'BBPOS')),
+        ),
+      );
+      await tester.pumpAndSettle();
+
       expect(find.text('New Stock Count'), findsOneWidget);
-      expect(find.text('BBPOS · Main Warehouse'), findsOneWidget);
+      expect(find.textContaining('BBPOS · Main Warehouse'), findsOneWidget);
 
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Select a warehouse and add at least one line.'), findsOneWidget);
+      expect(find.text('Add at least one line to save this count.'), findsOneWidget);
       expect(fakeRepo.createCalls, isEmpty);
     });
 
@@ -275,9 +296,10 @@ void main() {
       await tester.tap(find.text('Open Form'));
       await tester.pumpAndSettle();
 
-      // Existing line loaded from the freshly-fetched detail.
+      // Existing line loaded from the freshly-fetched detail; warehouse now read-only.
       expect(find.text('Existing Product'), findsOneWidget);
       expect(find.text('Edit Stock Count'), findsOneWidget);
+      expect(find.textContaining('BBPOS · Main Warehouse'), findsOneWidget);
 
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
@@ -331,7 +353,7 @@ void main() {
             barcodeScannerServiceProvider.overrideWithValue(_FakeBarcodeScannerService('1234567890')),
             authStateProvider.overrideWith((ref) => _FakeAuthStateNotifier(_authenticatedState(), _ReadOnlyRef(container))),
           ],
-          child: const MaterialApp(home: StockCountFormPage()),
+          child: const MaterialApp(home: StockCountFormPage(whseCode: 'BBPOS')),
         ),
       );
       await tester.pumpAndSettle();

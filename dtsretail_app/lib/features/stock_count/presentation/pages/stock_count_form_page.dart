@@ -6,17 +6,21 @@ import '../../../authentication/domain/entities/auth_session.dart';
 import '../../../authentication/presentation/providers/auth_providers.dart';
 import '../../../product/presentation/providers/product_providers.dart';
 import '../../domain/entities/stock_count_line.dart';
-import '../../domain/entities/warehouse.dart';
 import '../providers/stock_count_providers.dart';
 import '../widgets/barcode_scan_line_entry.dart';
-import '../widgets/warehouse_selector.dart';
 
 class StockCountFormPage extends ConsumerStatefulWidget {
-  const StockCountFormPage({super.key, this.companyId, this.branchId, this.stockcntId});
+  const StockCountFormPage({super.key, this.companyId, this.branchId, this.stockcntId, this.whseCode});
 
   final String? companyId;
   final String? branchId;
   final String? stockcntId;
+
+  /// The warehouse code for a NEW count, supplied by [WarehousePickerSheet]
+  /// via the route's query parameter. Ignored when editing — an existing
+  /// count's warehouse comes from the loaded record instead. Read-only in
+  /// both cases; see [_warehouseCode].
+  final String? whseCode;
 
   bool get isEditing => stockcntId != null;
 
@@ -26,7 +30,6 @@ class StockCountFormPage extends ConsumerStatefulWidget {
 
 class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
   final _formKey = GlobalKey<FormState>();
-  Warehouse? _selectedWarehouse;
   final List<StockCountLine> _lines = [];
   bool _isSaving = false;
   String? _errorMessage;
@@ -52,6 +55,10 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
   String? _existingStatus;
   String? _existingWhseCode;
   String? _loadErrorMessage;
+
+  /// The warehouse code that applies to this form: the existing record's
+  /// warehouse when editing, otherwise the code the picker sheet supplied.
+  String? get _warehouseCode => widget.isEditing ? _existingWhseCode : widget.whseCode;
 
   @override
   void initState() {
@@ -145,6 +152,31 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
       );
     }
 
+    if (!widget.isEditing && widget.whseCode == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('New Stock Count')),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.warehouse_outlined, size: 48, color: Theme.of(context).colorScheme.outline),
+                const SizedBox(height: 16),
+                Text(
+                  'No warehouse was selected. Please start again from Stock Counts.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Go Back')),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final warehousesAsync = ref.watch(warehousesProvider(session.companyId));
 
     return Scaffold(
@@ -156,15 +188,13 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
           children: [
             warehousesAsync.when(
               data: (warehouses) {
-                _selectedWarehouse ??= _pickDefaultWarehouse(warehouses, session);
-                return WarehouseSelector(
-                  warehouses: warehouses,
-                  selected: _selectedWarehouse,
-                  onChanged: (w) => setState(() => _selectedWarehouse = w),
-                );
+                final code = _warehouseCode;
+                final match = warehouses.where((w) => w.code == code);
+                final label = match.isNotEmpty ? '${match.first.code} · ${match.first.description}' : (code ?? '');
+                return Text('Warehouse: $label', style: Theme.of(context).textTheme.titleMedium);
               },
               loading: () => const LinearProgressIndicator(),
-              error: (error, _) => Text('Could not load warehouses: $error'),
+              error: (error, _) => Text('Could not load warehouse info: $error'),
             ),
             const SizedBox(height: 16),
             BarcodeScanLineEntry(
@@ -191,33 +221,13 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
             FilledButton(
               onPressed: _isSaving ? null : () => _submit(session),
               child: _isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Text('Save'),
             ),
           ],
         ),
       ),
     );
-  }
-
-  /// Picks the warehouse to preselect: the count's existing warehouse when
-  /// editing, otherwise the warehouse matching the user's current branch,
-  /// falling back to the first available warehouse.
-  Warehouse? _pickDefaultWarehouse(List<Warehouse> warehouses, AuthSession session) {
-    if (warehouses.isEmpty) return null;
-    if (widget.isEditing && _existingWhseCode != null) {
-      for (final w in warehouses) {
-        if (w.code == _existingWhseCode) return w;
-      }
-    }
-    for (final w in warehouses) {
-      if (w.branchCode == session.branchId) return w;
-    }
-    return warehouses.first;
   }
 
   Future<void> _scanAndAddLine(String companyId) async {
@@ -240,15 +250,6 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
       final product = result.items.first;
       setState(() {
         _errorMessage = null;
-        // A product is uniquely identified by (productTypeCode, productCode)
-        // — the same composite key BarcodeScanLineEntry uses for its list
-        // item ValueKeys. If this product is already in _lines, bump its
-        // qty instead of appending a second line: appending would create two
-        // StockCountLines with an identical ValueKey, which Flutter's list
-        // reconciliation (used by the Column BarcodeScanLineEntry renders
-        // into) rejects as a duplicate sibling key. Merging on rescan also
-        // matches real usage — a worker rescanning the same item expects the
-        // qty to go up, not a second row for the same product.
         final existingIndex = _lines.indexWhere(
           (line) => line.productTypeCode == product.productTypeCode && line.productCode == product.productCode,
         );
@@ -283,8 +284,8 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
     final formValid = _formKey.currentState?.validate() ?? true;
     if (!formValid) return;
 
-    if (_selectedWarehouse == null || _lines.isEmpty) {
-      setState(() => _errorMessage = 'Select a warehouse and add at least one line.');
+    if (_lines.isEmpty) {
+      setState(() => _errorMessage = 'Add at least one line to save this count.');
       return;
     }
 
@@ -295,8 +296,6 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
 
     try {
       if (widget.isEditing) {
-        // Re-check the count is still OPEN immediately before submitting.
-        // See the class-level comment above for why this matters.
         final usecase = ref.read(getStockCountDetailUsecaseProvider);
         final current = await usecase(
           companyId: session.companyId,
@@ -317,7 +316,7 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
           branchId: session.branchId,
           stockcntId: widget.stockcntId!,
           cntType: 'CNT',
-          whseCode: _selectedWarehouse!.code,
+          whseCode: _warehouseCode!,
           lines: _lines,
           userId: session.loginId,
         );
@@ -326,7 +325,7 @@ class _StockCountFormPageState extends ConsumerState<StockCountFormPage> {
           companyId: session.companyId,
           branchId: session.branchId,
           cntType: 'CNT',
-          whseCode: _selectedWarehouse!.code,
+          whseCode: _warehouseCode!,
           lines: _lines,
           userId: session.loginId,
         );
