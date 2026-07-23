@@ -7,6 +7,8 @@ abstract interface class ProductRepository {
     int searchKey,
     int page,
     int size,
+    String sortBy,
+    String sortDirection,
   });
 
   Future<Product> getDetail({

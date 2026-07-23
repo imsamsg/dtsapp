@@ -20,6 +20,7 @@ const _testProduct = Product(
   productTitle: 'Test Product',
   productBrand: 'NATIO',
   isEnabled: true,
+  isDiscontinued: false,
   priceWithGst: 29.9,
   priceWithoutGst: 27.94,
   cost: 13.08,
@@ -43,6 +44,8 @@ class _FakeProductRepository implements ProductRepository {
     int searchKey = 0,
     int page = 0,
     int size = 20,
+    String sortBy = 'productCode',
+    String sortDirection = 'asc',
   }) async {
     lastSearchString = searchString;
     if (error != null) throw error!;

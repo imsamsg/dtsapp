@@ -145,6 +145,8 @@ class _FakeProductRepository implements ProductRepository {
     int searchKey = 0,
     int page = 0,
     int size = 20,
+    String sortBy = 'productCode',
+    String sortDirection = 'asc',
   }) async {
     return ProductSearchResult(items: [_product], totalElements: 1, totalPages: 1);
   }
@@ -163,6 +165,7 @@ const _scannedProduct = Product(
   productTitle: 'Scanned Product',
   productBrand: 'Acme',
   isEnabled: true,
+  isDiscontinued: false,
   priceWithGst: 12,
   priceWithoutGst: 11,
   cost: 6,

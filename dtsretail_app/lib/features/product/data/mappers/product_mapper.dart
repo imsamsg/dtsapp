@@ -11,11 +11,14 @@ extension ProductDtoMapper on ProductDto {
       productTitle: productTitle ?? '',
       productBrand: productBrand ?? '',
       isEnabled: enableyn ?? true,
+      isDiscontinued: discontinueYN ?? false,
       priceWithGst: productPriceWgst ?? 0,
       priceWithoutGst: productPriceWogst ?? 0,
       cost: productCost ?? 0,
       uom: productUOM ?? '',
       qtyOnHand: prodTotQtyOnHand ?? 0,
+      imageUrl: (prodImage != null && prodImage!.isNotEmpty) ? prodImage : null,
+      reorderLevel: productReorderLevel ?? productSafetyStock,
     );
   }
 }

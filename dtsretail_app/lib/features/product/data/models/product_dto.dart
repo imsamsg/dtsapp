@@ -12,11 +12,15 @@ class ProductDto {
     this.productTitle,
     this.productBrand,
     this.enableyn,
+    this.discontinueYN,
     this.productPriceWgst,
     this.productPriceWogst,
     this.productCost,
     this.productUOM,
     this.prodTotQtyOnHand,
+    this.prodImage,
+    this.productReorderLevel,
+    this.productSafetyStock,
   });
 
   final String companyId;
@@ -26,11 +30,15 @@ class ProductDto {
   final String? productTitle;
   final String? productBrand;
   final bool? enableyn;
+  final bool? discontinueYN;
   final double? productPriceWgst;
   final double? productPriceWogst;
   final double? productCost;
   final String? productUOM;
   final double? prodTotQtyOnHand;
+  final String? prodImage;
+  final double? productReorderLevel;
+  final double? productSafetyStock;
 
   factory ProductDto.fromJson(Map<String, dynamic> json) => _$ProductDtoFromJson(json);
 }

@@ -13,6 +13,8 @@ class ProductRemoteDatasource {
     int searchKey = 0,
     int page = 0,
     int size = 20,
+    String sortBy = 'productCode',
+    String sortDirection = 'asc',
   }) {
     return guardApiCall(() async {
       final response = await _dio.get('/inventory/products/search', queryParameters: {
@@ -21,6 +23,8 @@ class ProductRemoteDatasource {
         'searchKey': searchKey,
         'page': page,
         'size': size,
+        'sortBy': sortBy,
+        'sortDirection': sortDirection,
       });
       return ProductSearchResponseDto.fromJson(response.data as Map<String, dynamic>);
     });

@@ -12,6 +12,8 @@ class SearchProductsUsecase {
     int searchKey = 0,
     int page = 0,
     int size = 20,
+    String sortBy = 'productCode',
+    String sortDirection = 'asc',
   }) {
     return _repository.search(
       companyId: companyId,
@@ -19,6 +21,8 @@ class SearchProductsUsecase {
       searchKey: searchKey,
       page: page,
       size: size,
+      sortBy: sortBy,
+      sortDirection: sortDirection,
     );
   }
 }

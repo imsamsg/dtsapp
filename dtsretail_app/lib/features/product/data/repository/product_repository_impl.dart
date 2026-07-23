@@ -15,6 +15,8 @@ class ProductRepositoryImpl implements ProductRepository {
     int searchKey = 0,
     int page = 0,
     int size = 20,
+    String sortBy = 'productCode',
+    String sortDirection = 'asc',
   }) async {
     final dto = await _remote.search(
       companyId: companyId,
@@ -22,6 +24,8 @@ class ProductRepositoryImpl implements ProductRepository {
       searchKey: searchKey,
       page: page,
       size: size,
+      sortBy: sortBy,
+      sortDirection: sortDirection,
     );
     return dto.toDomain();
   }

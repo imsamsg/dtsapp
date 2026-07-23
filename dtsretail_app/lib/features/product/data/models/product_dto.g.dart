@@ -14,11 +14,15 @@ ProductDto _$ProductDtoFromJson(Map<String, dynamic> json) => ProductDto(
   productTitle: json['productTitle'] as String?,
   productBrand: json['productBrand'] as String?,
   enableyn: json['enableyn'] as bool?,
+  discontinueYN: json['discontinueYN'] as bool?,
   productPriceWgst: (json['productPriceWgst'] as num?)?.toDouble(),
   productPriceWogst: (json['productPriceWogst'] as num?)?.toDouble(),
   productCost: (json['productCost'] as num?)?.toDouble(),
   productUOM: json['productUOM'] as String?,
   prodTotQtyOnHand: (json['prodTotQtyOnHand'] as num?)?.toDouble(),
+  prodImage: json['prodImage'] as String?,
+  productReorderLevel: (json['productReorderLevel'] as num?)?.toDouble(),
+  productSafetyStock: (json['productSafetyStock'] as num?)?.toDouble(),
 );
 
 Map<String, dynamic> _$ProductDtoToJson(ProductDto instance) =>
@@ -30,11 +34,15 @@ Map<String, dynamic> _$ProductDtoToJson(ProductDto instance) =>
       'productTitle': instance.productTitle,
       'productBrand': instance.productBrand,
       'enableyn': instance.enableyn,
+      'discontinueYN': instance.discontinueYN,
       'productPriceWgst': instance.productPriceWgst,
       'productPriceWogst': instance.productPriceWogst,
       'productCost': instance.productCost,
       'productUOM': instance.productUOM,
       'prodTotQtyOnHand': instance.prodTotQtyOnHand,
+      'prodImage': instance.prodImage,
+      'productReorderLevel': instance.productReorderLevel,
+      'productSafetyStock': instance.productSafetyStock,
     };
 
 ProductSearchResponseDto _$ProductSearchResponseDtoFromJson(
