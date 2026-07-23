@@ -165,6 +165,7 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
+    expect(find.text('Unable to reach the server. Check your connection.'), findsOneWidget);
     expect(find.byType(AppErrorView), findsOneWidget);
   });
 

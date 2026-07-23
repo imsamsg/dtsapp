@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/api/api_exception.dart';
 import '../../../../core/services/barcode_scanner_service.dart';
 import '../../../../core/storage/recent_searches_storage.dart';
 import '../../../../core/widgets/app_error_view.dart';
@@ -216,7 +217,7 @@ class _ProductListPageState extends ConsumerState<ProductListPage> {
 
     if (state.error != null) {
       return AppErrorView(
-        message: 'Unable to load products. Please try again.',
+        message: state.error is ApiException ? (state.error as ApiException).message : 'Unable to load products. Please try again.',
         onRetry: () => ref.read(productListProvider(query).notifier).refresh(),
       );
     }
