@@ -9,6 +9,8 @@ class AppColors {
   static const accent = Color(0xFF14BBA6); // secondary accent, gradient mid-tone
   static const surfaceTint = Color(0xFFF0FDF4); // light card-on-tinted-background
   static const danger = Color(0xFFEF4444); // error state
+  static const warning = Color(0xFFF59E0B); // low-stock badge
+  static const neutral = Color(0xFF64748B); // inactive-status badge, secondary text
 }
 
 final ThemeData appThemeLight = ThemeData(
