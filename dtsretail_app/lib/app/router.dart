@@ -52,6 +52,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               companyId: state.uri.queryParameters['companyId'],
               branchId: state.uri.queryParameters['branchId'],
               stockcntId: state.uri.queryParameters['stockcntId'],
+              whseCode: state.uri.queryParameters['whseCode'],
             ),
           ),
           GoRoute(
