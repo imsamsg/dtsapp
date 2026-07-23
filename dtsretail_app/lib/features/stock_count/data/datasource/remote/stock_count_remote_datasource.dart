@@ -17,6 +17,7 @@ class StockCountRemoteDatasource {
     required String companyId,
     required String branchId,
     String? status,
+    String? warehouse,
     int page = 0,
     int size = 20,
   }) {
@@ -25,6 +26,7 @@ class StockCountRemoteDatasource {
         'companyId': companyId,
         'branchId': branchId,
         if (status != null) 'status': status,
+        if (warehouse != null) 'warehouse': warehouse,
         'page': page,
         'size': size,
       });

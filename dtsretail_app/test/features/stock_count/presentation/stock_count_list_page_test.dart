@@ -16,6 +16,7 @@ class _FakeStockCountRepository implements StockCountRepository {
     required String companyId,
     required String branchId,
     String? status,
+    String? warehouse,
     int page = 0,
     int size = 20,
   }) async {

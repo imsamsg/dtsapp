@@ -27,21 +27,31 @@ final createStockCountUsecaseProvider = Provider((ref) => CreateStockCountUsecas
 final updateStockCountUsecaseProvider = Provider((ref) => UpdateStockCountUsecase(ref.watch(stockCountRepositoryProvider)));
 
 class StockCountSearchQuery {
-  const StockCountSearchQuery({required this.companyId, required this.branchId, this.status});
+  const StockCountSearchQuery({required this.companyId, required this.branchId, this.status, this.warehouse});
   final String companyId;
   final String branchId;
   final String? status;
+  final String? warehouse;
 
   @override
   bool operator ==(Object other) =>
-      other is StockCountSearchQuery && other.companyId == companyId && other.branchId == branchId && other.status == status;
+      other is StockCountSearchQuery &&
+      other.companyId == companyId &&
+      other.branchId == branchId &&
+      other.status == status &&
+      other.warehouse == warehouse;
 
   @override
-  int get hashCode => Object.hash(companyId, branchId, status);
+  int get hashCode => Object.hash(companyId, branchId, status, warehouse);
 }
 
 final stockCountSearchProvider = FutureProvider.family<StockCountSearchResult, StockCountSearchQuery>((ref, query) {
-  return ref.watch(searchStockCountsUsecaseProvider)(companyId: query.companyId, branchId: query.branchId, status: query.status);
+  return ref.watch(searchStockCountsUsecaseProvider)(
+    companyId: query.companyId,
+    branchId: query.branchId,
+    status: query.status,
+    warehouse: query.warehouse,
+  );
 });
 
 final stockCountDetailProvider = FutureProvider.family<StockCount, ({String companyId, String branchId, String stockcntId})>(

@@ -7,6 +7,7 @@ abstract interface class StockCountRepository {
     required String companyId,
     required String branchId,
     String? status,
+    String? warehouse,
     int page,
     int size,
   });

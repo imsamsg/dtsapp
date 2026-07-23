@@ -17,10 +17,18 @@ class StockCountRepositoryImpl implements StockCountRepository {
     required String companyId,
     required String branchId,
     String? status,
+    String? warehouse,
     int page = 0,
     int size = 20,
   }) async {
-    final dto = await _remote.search(companyId: companyId, branchId: branchId, status: status, page: page, size: size);
+    final dto = await _remote.search(
+      companyId: companyId,
+      branchId: branchId,
+      status: status,
+      warehouse: warehouse,
+      page: page,
+      size: size,
+    );
     return dto.toDomain();
   }
 

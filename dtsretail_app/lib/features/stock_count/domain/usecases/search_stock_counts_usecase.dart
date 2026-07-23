@@ -10,9 +10,10 @@ class SearchStockCountsUsecase {
     required String companyId,
     required String branchId,
     String? status,
+    String? warehouse,
     int page = 0,
     int size = 20,
   }) {
-    return _repository.search(companyId: companyId, branchId: branchId, status: status, page: page, size: size);
+    return _repository.search(companyId: companyId, branchId: branchId, status: status, warehouse: warehouse, page: page, size: size);
   }
 }
