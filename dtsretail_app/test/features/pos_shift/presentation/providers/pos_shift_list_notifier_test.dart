@@ -57,6 +57,31 @@ class _FakePosShiftRepository implements PosShiftRepository {
   }
 }
 
+/// Succeeds normally until [shouldFailNextCall] is flipped on, then throws
+/// on the next (and only the next intended) call. Used to simulate a
+/// successful initial load followed by a failed refresh.
+class _FlakyPosShiftRepository implements PosShiftRepository {
+  _FlakyPosShiftRepository(this.items);
+  List<PosShift> items;
+  int callCount = 0;
+  bool shouldFailNextCall = false;
+
+  @override
+  Future<List<PosShift>> search({
+    required String companyId,
+    required String branchId,
+    String? terminalId,
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) async {
+    callCount++;
+    if (shouldFailNextCall) {
+      throw StateError('simulated refresh failure');
+    }
+    return items;
+  }
+}
+
 Future<void> _flush() => Future<void>.delayed(Duration.zero);
 
 void main() {
@@ -124,6 +149,29 @@ void main() {
     final state = container.read(posShiftListProvider(query));
     expect(state.allItems, hasLength(5));
     expect(repo.callCount, 2);
+  });
+
+  test('a failed refresh keeps the existing list and stops the spinner without setting an error', () async {
+    final repo = _FlakyPosShiftRepository(_buildShifts(10));
+    final container = ProviderContainer(overrides: [posShiftRepositoryProvider.overrideWithValue(repo)]);
+    addTearDown(container.dispose);
+
+    final notifier = container.read(posShiftListProvider(query).notifier);
+    await _flush();
+
+    final beforeState = container.read(posShiftListProvider(query));
+    final beforeAllItems = beforeState.allItems;
+    final beforeVisibleItems = beforeState.visibleItems;
+    expect(beforeAllItems, hasLength(10));
+
+    repo.shouldFailNextCall = true;
+    await notifier.refresh();
+
+    final state = container.read(posShiftListProvider(query));
+    expect(state.allItems, equals(beforeAllItems));
+    expect(state.visibleItems, equals(beforeVisibleItems));
+    expect(state.isRefreshing, isFalse);
+    expect(state.error, isNull);
   });
 
   test('a failed initial fetch sets error and leaves items empty', () async {
