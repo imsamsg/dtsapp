@@ -73,6 +73,30 @@ class _FakePosTerminalRepository implements PosTerminalRepository {
       _terminals;
 }
 
+/// Grows the test surface so the first progressive-reveal batch (20 cards,
+/// each measured at exactly 87px tall) renders in full below the app bar and
+/// filter row (measured at 116px combined). The default 800x600 test
+/// viewport only fits ~6 cards, which makes `find` miss items beyond the
+/// fold: `ListView.builder` only lays out children within the viewport (plus
+/// a small cache extent), so items past that are never built and `find`
+/// (which walks the built Element tree) simply doesn't see them, regardless
+/// of `cacheExtent` tuning. Mirrors the pattern in
+/// `test/features/dashboard/presentation/dashboard_page_test.dart`.
+///
+/// 1800px was chosen deliberately, not just "big enough": all 20 first-batch
+/// cards need 20*87 + 116 = 1856px to fit with zero scroll room left. Sizing
+/// exactly to (or above) that boundary makes the list's `maxScrollExtent` 0,
+/// which means the list is not scrollable at all — the scroll-triggered
+/// `loadMore()` in `_onScroll` never fires because no ScrollUpdateNotification
+/// is ever produced, and the second batch never loads. 1800px keeps the list
+/// just short of that boundary (maxScrollExtent ~56px), which is both enough
+/// to show all 20 first-batch cards (so `S19` is visible) *and* leaves the
+/// list scrollable (so a small drag can still trigger progressive reveal).
+Future<void> _growSurface(WidgetTester tester) async {
+  await tester.binding.setSurfaceSize(const Size(800, 1800));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+}
+
 void main() {
   Widget buildHarness({required PosShiftRepository shiftRepo, GoRouter? router}) {
     final container = ProviderContainer();
@@ -134,6 +158,7 @@ void main() {
   });
 
   testWidgets('progressive reveal shows more items on scroll without an extra network call', (tester) async {
+    await _growSurface(tester);
     final repo = _FakePosShiftRepository(items: List.generate(45, (i) => _shift('S$i')));
     await tester.pumpWidget(buildHarness(shiftRepo: repo));
     await tester.pumpAndSettle();
@@ -141,7 +166,14 @@ void main() {
     expect(find.textContaining('S19'), findsOneWidget);
     expect(find.textContaining('S20'), findsNothing);
 
-    await tester.fling(find.byType(ListView), const Offset(0, -5000), 3000);
+    // A large, fast fling (as used elsewhere, e.g. the pull-to-refresh test)
+    // would overshoot: on this taller surface it keeps triggering loadMore()
+    // as it flies past each newly-revealed batch boundary, cascading all the
+    // way through the 45-item dataset and settling at the very bottom — past
+    // S20, not on it. A modest, slower fling triggers exactly one loadMore()
+    // (crossing the `maxScrollExtent - 300` threshold once) and settles with
+    // S20 on screen, which is what "progressive reveal" is meant to exercise.
+    await tester.fling(find.byType(ListView), const Offset(0, -300), 200);
     await tester.pumpAndSettle();
 
     expect(find.textContaining('S20'), findsOneWidget);
