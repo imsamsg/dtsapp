@@ -19,12 +19,14 @@ class _FakeBarcodeScannerService implements BarcodeScannerService {
   Future<String?> scan(BuildContext context) async => barcode;
 }
 
-/// Grows the test surface so all five quick-action tiles render on screen at
-/// once. The default 800x600 test viewport clips the grid below the fold,
-/// which makes `tap()` hit-test against nothing (and silently no-op) for the
-/// lower tiles.
-Future<void> _growSurface(WidgetTester tester) async {
-  await tester.binding.setSurfaceSize(const Size(800, 1200));
+/// Grows the test surface so quick-action tiles render on screen. The
+/// default 800x600 test viewport clips the grid below the fold, which makes
+/// `tap()` hit-test against nothing (and silently no-op) for the lower
+/// tiles. [size] defaults to a height that fits the first four tiles;
+/// callers that need to reach tiles further down the grid (e.g. a 5th tile
+/// alone in its own row) should pass a taller [size].
+Future<void> _growSurface(WidgetTester tester, {Size size = const Size(800, 1200)}) async {
+  await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
 }
 
@@ -123,8 +125,7 @@ void main() {
 
   testWidgets('POS tile navigates via GoRouter', (tester) async {
     // POS is the 5th quick action tile, so we need a larger surface to fit all tiles.
-    await tester.binding.setSurfaceSize(const Size(800, 1400));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _growSurface(tester, size: const Size(800, 1400));
 
     final container = ProviderContainer();
     addTearDown(container.dispose);
