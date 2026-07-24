@@ -54,9 +54,8 @@ class AppDrawer extends ConsumerWidget {
             _DrawerItem(
               icon: Icons.point_of_sale_outlined,
               label: 'POS',
-              selected: false,
-              enabled: false,
-              onTap: () {},
+              selected: currentPath.startsWith('/pos-shifts'),
+              onTap: () => _navigate(context, '/pos-shifts'),
             ),
             _DrawerItem(
               icon: Icons.settings_outlined,

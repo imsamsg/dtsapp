@@ -57,8 +57,7 @@ class DashboardPage extends ConsumerWidget {
                 QuickAction(
                   icon: Icons.point_of_sale_outlined,
                   label: 'POS',
-                  enabled: false,
-                  onTap: () {},
+                  onTap: () => context.go('/pos-shifts'),
                 ),
               ],
             ),

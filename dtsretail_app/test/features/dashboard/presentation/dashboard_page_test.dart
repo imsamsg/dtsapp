@@ -53,15 +53,15 @@ void main() {
     expect(find.text('BAS1'), findsOneWidget);
     expect(find.text('STAFF'), findsOneWidget);
 
-    // Quick actions: Product Catalog, Stock Count and Scan Barcode are
-    // enabled links; Stock Pick and POS are shown but disabled, matching
-    // the drawer's "Coming soon" treatment from Task 7.
+    // Quick actions: Product Catalog, Stock Count, Scan Barcode, and POS are
+    // enabled links; Stock Pick alone is still shown but disabled, pending
+    // its own future feature.
     expect(find.text('Product Catalog'), findsOneWidget);
     expect(find.text('Stock Count'), findsOneWidget);
     expect(find.text('Scan Barcode'), findsOneWidget);
     expect(find.text('Stock Pick'), findsOneWidget);
     expect(find.text('POS'), findsOneWidget);
-    expect(find.text('Coming soon'), findsNWidgets(2));
+    expect(find.text('Coming soon'), findsNWidgets(1));
   });
 
   testWidgets('tapping a disabled quick action does nothing', (tester) async {
@@ -119,6 +119,40 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Stock Counts Page'), findsOneWidget);
+  });
+
+  testWidgets('POS tile navigates via GoRouter', (tester) async {
+    // POS is the 5th quick action tile, so we need a larger surface to fit all tiles.
+    await tester.binding.setSurfaceSize(const Size(800, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final router = GoRouter(
+      initialLocation: '/dashboard',
+      routes: [
+        GoRoute(path: '/dashboard', builder: (context, state) => const DashboardPage()),
+        GoRoute(path: '/pos-shifts', builder: (context, state) => const Scaffold(body: Text('POS Shifts Page'))),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith(
+            (ref) => _FakeAuthStateNotifier(_authenticatedState(), _ReadOnlyRef(container)),
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('POS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('POS Shifts Page'), findsOneWidget);
   });
 
   testWidgets('scanning a barcode navigates to Product Catalog and forwards the scanned barcode', (tester) async {
