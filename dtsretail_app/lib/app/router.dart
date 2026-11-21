@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../features/authentication/presentation/pages/login_page.dart';
 import '../features/authentication/presentation/providers/auth_providers.dart';
 import '../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../features/pos_shift/domain/entities/pos_shift.dart';
+import '../features/pos_shift/presentation/pages/pos_shift_detail_page.dart';
+import '../features/pos_shift/presentation/pages/pos_shift_list_page.dart';
 import '../features/product/presentation/pages/product_detail_page.dart';
 import '../features/product/presentation/pages/product_list_page.dart';
 import '../features/settings/presentation/pages/settings_page.dart';
@@ -62,6 +65,16 @@ final routerProvider = Provider<GoRouter>((ref) {
               branchId: state.pathParameters['branchId']!,
               stockcntId: state.pathParameters['stockcntId']!,
             ),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/pos-shifts',
+        builder: (context, state) => const PosShiftListPage(),
+        routes: [
+          GoRoute(
+            path: 'detail',
+            builder: (context, state) => PosShiftDetailPage(shift: state.extra as PosShift),
           ),
         ],
       ),
